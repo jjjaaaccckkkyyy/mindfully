@@ -1,6 +1,61 @@
 # Technical Specifications
 
-## Tech Stack
+## Implementation Status
+
+| Version | Status | Description |
+|---------|--------|-------------|
+| v0.1.0 | ✅ Built | Basic monorepo scaffold |
+| v0.1.1 | 🔜 Planned | Client stack (Tailwind, dashboard) |
+| v0.1.2 | 🔜 Planned | Auth (OAuth) |
+| v0.1.3 | 🔜 Planned | Agent framework, database |
+
+---
+
+## Current Stack (v0.1.0 - Built)
+
+### Server
+| Component | Technology |
+|-----------|------------|
+| API | Express + tRPC |
+| Runtime | Node.js + pnpm |
+| Language | TypeScript |
+
+### Client
+| Component | Technology |
+|-----------|------------|
+| Framework | React 19 + Vite |
+| Language | TypeScript |
+
+### Core
+| Component | Technology |
+|-----------|------------|
+| Types | Agent, Tool, Memory interfaces |
+| Storage | InMemoryStore (for development) |
+
+---
+
+## Planned Stack (v0.1.1+)
+
+### Client Stack (v0.1.1)
+
+| Component | Technology |
+|-----------|------------|
+| Framework | React 19 + Vite |
+| Styling | Tailwind CSS + shadcn/ui |
+| Icons | Lucide React |
+| Animation | Motion |
+| Charts | Recharts |
+| Visualization | React D3 Tree |
+| Layout | Classic dashboard (sidebar + header + content) |
+
+### Dashboard Features (v0.1.1)
+
+- Agent status cards with motion animations
+- Activity chart (Recharts)
+- Agent tree visualization (React D3 Tree)
+- Recent activity feed
+
+### Server Stack (v0.1.2+)
 
 | Component | Technology |
 |-----------|------------|
@@ -8,16 +63,25 @@
 | Runtime | Node.js + pnpm |
 | Language | TypeScript |
 | Agent Framework | LangChain/LangGraph (Node.js) |
-| Note | Node.js LangChain has limited features compared to Python |
 | Orchestration | LangGraph |
 | Vector DB | Qdrant |
 | Compute | EKS + EKS Anywhere |
 | Inter-Agent Protocol | A2A Protocol + MCP |
 | Database | PostgreSQL |
 | Queue | AWS SQS |
-| Auth | JWT (jose) |
+| Auth | Auth.js (NextAuth) v5 + OAuth 2.0 (PKCE) |
 
-## Architecture
+### OAuth Providers (v0.1.2)
+- GitHub
+- Google
+
+### User Management (v0.1.2)
+- Persistent users stored in PostgreSQL
+- Session-based authentication
+
+---
+
+## Server Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -48,7 +112,7 @@
 ## Multi-Tenancy
 
 - Tenant isolation via namespace
-- JWT-based authentication
+- OAuth 2.0 + PKCE authentication
 - Per-tenant rate limiting
 - Usage tracking (per-token billing)
 
@@ -68,6 +132,8 @@
 
 ## Version
 
-Current: **v0.1.1**
+Current: **v0.1.0** (see [CHANGELOG.md](./CHANGELOG.md) for details)
 
-See [CHANGELOG.md](./CHANGELOG.md) for version history.
+## Development Lifecycle
+
+See [LIFECYCLE.md](./LIFECYCLE.md) for development workflow, testing requirements, and coverage guidelines.

@@ -6,7 +6,7 @@ This file provides guidelines for AI coding agents working in this repository.
 
 Multi-agent platform with monorepo structure:
 - **server**: Express + tRPC API
-- **client**: Frontend (React)
+- **client**: React + Tailwind + shadcn/ui + Motion + Recharts + React D3 Tree
 - **core**: Agent implementations (LangGraph, MCP, A2A, RAG)
 
 Local development only.
