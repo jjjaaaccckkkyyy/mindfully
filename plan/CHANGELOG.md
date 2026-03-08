@@ -57,6 +57,11 @@ The format is based on [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 - Improved search bar with consistent styling
 - Header buttons with proper spacing
 - Fixed layout issues at widths > 1440px
+- **Mindmap visualization**: Custom SVG mindmap replacing tree view
+  - Radial gradient nodes with pulse animations
+  - Connection lines with hover effects
+  - Grid overlay for cyberpunk effect
+- Fixed layout issues at widths > 1440px
 
 ## [v0.1.2] - Future
 

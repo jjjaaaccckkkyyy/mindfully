@@ -4,11 +4,8 @@ This folder contains visual regression test screenshots for the Mindful dashboar
 
 ## Screenshots
 
-| File | Description | Viewport |
-|------|-------------|----------|
-| `desktop.png` | Full desktop view with expanded sidebar | 1920x1080 |
-| `mobile.png` | Mobile view with hamburger menu | 375x667 |
-| `sidebar-collapsed.png` | Desktop with collapsed sidebar | 1920x1080 |
+- `mindmap-view.png` - Mindmap-style agent hierarchy visualization
+- Test at various viewport sizes: mobile (375px), tablet (768px), desktop (1440px), wide (1920px)
 | `sidebar-expanded.png` | Desktop with expanded sidebar (hover state) | 1920x1080 |
 
 ## Taking Screenshots

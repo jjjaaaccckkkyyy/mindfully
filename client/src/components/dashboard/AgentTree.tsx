@@ -1,55 +1,109 @@
-import { useState } from "react";
 import { motion } from "motion/react";
-import Tree from "react-d3-tree";
 
-interface TreeNode {
+interface AgentNode {
+  id: string;
   name: string;
-  attributes?: Record<string, string>;
-  children?: TreeNode[];
+  role: string;
+  status: "running" | "idle";
+  x: number;
+  y: number;
+  connections: string[];
 }
 
-const agentTree: TreeNode = {
-  name: "Orchestrator",
-  attributes: {
+const nodes: AgentNode[] = [
+  {
+    id: "orchestrator",
+    name: "Orchestrator",
+    role: "Planner",
     status: "running",
+    x: 400,
+    y: 200,
+    connections: ["research", "builder", "analyzer"],
   },
-  children: [
-    {
-      name: "Research",
-      attributes: {
-        status: "running",
-      },
-      children: [
-        { name: "Web Search", attributes: { status: "idle" } },
-        { name: "Doc Fetch", attributes: { status: "idle" } },
-      ],
-    },
-    {
-      name: "Builder",
-      attributes: {
-        status: "idle",
-      },
-      children: [
-        { name: "Code Gen", attributes: { status: "idle" } },
-        { name: "Review", attributes: { status: "idle" } },
-      ],
-    },
-    {
-      name: "Analyzer",
-      attributes: {
-        status: "running",
-      },
-      children: [
-        { name: "Process", attributes: { status: "running" } },
-        { name: "Insights", attributes: { status: "idle" } },
-      ],
-    },
-  ],
-};
+  {
+    id: "research",
+    name: "Research",
+    role: "Search & Fetch",
+    status: "running",
+    x: 200,
+    y: 80,
+    connections: ["web-search", "doc-fetch"],
+  },
+  {
+    id: "builder",
+    name: "Builder",
+    role: "Code Gen",
+    status: "idle",
+    x: 400,
+    y: 80,
+    connections: ["code-gen", "code-review"],
+  },
+  {
+    id: "analyzer",
+    name: "Analyzer",
+    role: "Data Process",
+    status: "running",
+    x: 600,
+    y: 80,
+    connections: ["process", "insights"],
+  },
+  {
+    id: "web-search",
+    name: "Web Search",
+    role: "Tool",
+    status: "idle",
+    x: 100,
+    y: 20,
+    connections: [],
+  },
+  {
+    id: "doc-fetch",
+    name: "Doc Fetch",
+    role: "Tool",
+    status: "idle",
+    x: 200,
+    y: 20,
+    connections: [],
+  },
+  {
+    id: "code-gen",
+    name: "Code Gen",
+    role: "Tool",
+    status: "idle",
+    x: 350,
+    y: 20,
+    connections: [],
+  },
+  {
+    id: "code-review",
+    name: "Review",
+    role: "Tool",
+    status: "idle",
+    x: 450,
+    y: 20,
+    connections: [],
+  },
+  {
+    id: "process",
+    name: "Process",
+    role: "Tool",
+    status: "running",
+    x: 550,
+    y: 20,
+    connections: [],
+  },
+  {
+    id: "insights",
+    name: "Insights",
+    role: "Tool",
+    status: "idle",
+    x: 650,
+    y: 20,
+    connections: [],
+  },
+];
 
 export function AgentTree() {
-  const [translate] = useState({ x: 50, y: 80 });
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -74,81 +128,154 @@ export function AgentTree() {
 
       <div className="relative z-10">
         <h3 className="font-display mb-4 md:mb-6 text-lg font-semibold tracking-widest uppercase text-foreground">
-          Hierarchy
+          Agent Hierarchy
         </h3>
-        <div
-          className="h-48 md:h-72 overflow-hidden rounded"
-          style={{
-            background:
-              "linear-gradient(135deg, hsl(222 47% 14% / 0.5) 0%, hsl(222 47% 10% / 0.3) 100%)",
-          }}
-        >
-          <Tree
-            data={agentTree}
-            orientation="horizontal"
-            pathFunc="step"
-            translate={translate}
-            nodeSize={{ x: 110, y: 55 }}
-            renderCustomNodeElement={(rd3tProps) => {
-              const { nodeDatum } = rd3tProps;
-              const isRunning = nodeDatum.attributes?.status === "running";
+        <div className="h-48 md:h-72 overflow-hidden rounded relative">
+          <svg
+            width="100%"
+            height="100%"
+            viewBox="0 0 800 250"
+            className="overflow-visible"
+          >
+            {/* Connection lines */}
+            {nodes.map((node) =>
+              node.connections.map((targetId) => {
+                const target = nodes.find((n) => n.id === targetId);
+                if (!target) return null;
+
+                return (
+                  <motion.line
+                    key={`${node.id}-${targetId}`}
+                    initial={{ pathLength: 0, opacity: 0 }}
+                    animate={{ pathLength: 1, opacity: 1 }}
+                    transition={{ delay: 0.6, duration: 0.5 }}
+                    x1={node.x}
+                    y1={node.y}
+                    x2={target.x}
+                    y2={target.y}
+                    stroke="hsl(187 100% 50% / 0.3)"
+                    strokeWidth="2"
+                    className="transition-all duration-300 hover:stroke-[hsl(187_100%_50%/0.6)]"
+                  />
+                );
+              }),
+            )}
+
+            {/* Nodes */}
+            {nodes.map((node, index) => {
+              const isTool = node.role === "Tool";
+              const isRunning = node.status === "running";
 
               return (
-                <g>
+                <motion.g
+                  key={node.id}
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.7 + index * 0.05, duration: 0.3 }}
+                  className="cursor-pointer"
+                >
+                  {/* Node circle */}
                   <circle
-                    r="14"
+                    cx={node.x}
+                    cy={node.y}
+                    r={isTool ? 18 : 24}
                     fill={
-                      isRunning
-                        ? "url(#gradientRunningCyber)"
-                        : "url(#gradientIdleCyber)"
+                      isRunning ? "url(#runningGradient)" : "url(#idleGradient)"
                     }
-                    stroke={isRunning ? "#f59e0b" : "#6b7280"}
-                    strokeWidth="1"
+                    stroke={
+                      isRunning
+                        ? "hsl(187 100% 70%)"
+                        : "hsl(187 100% 50% / 0.3)"
+                    }
+                    strokeWidth="2"
+                    className="transition-all duration-300 hover:stroke-[hsl(187_100%_70%)]"
+                    style={{
+                      filter: isRunning
+                        ? "drop-shadow(0 0 10px hsl(187 100% 50% / 0.5))"
+                        : "none",
+                    }}
                   />
-                  <defs>
-                    <linearGradient
-                      id="gradientRunningCyber"
-                      x1="0%"
-                      y1="0%"
-                      x2="100%"
-                      y2="100%"
-                    >
-                      <stop offset="0%" stopColor="#f59e0b" />
-                      <stop offset="100%" stopColor="#d97706" />
-                    </linearGradient>
-                    <linearGradient
-                      id="gradientIdleCyber"
-                      x1="0%"
-                      y1="0%"
-                      x2="100%"
-                      y2="100%"
-                    >
-                      <stop offset="0%" stopColor="#4b5563" />
-                      <stop offset="100%" stopColor="#1f2937" />
-                    </linearGradient>
-                  </defs>
+
+                  {/* Running indicator pulse */}
+                  {isRunning && (
+                    <>
+                      <circle
+                        cx={node.x}
+                        cy={node.y}
+                        r={isTool ? 18 : 24}
+                        fill="none"
+                        stroke="hsl(187 100% 70%)"
+                        strokeWidth="2"
+                        opacity="0.6"
+                      >
+                        <animate
+                          attributeName="r"
+                          from={isTool ? 18 : 24}
+                          to={isTool ? 30 : 36}
+                          dur="2s"
+                          repeatCount="indefinite"
+                        />
+                        <animate
+                          attributeName="opacity"
+                          from="0.6"
+                          to="0"
+                          dur="2s"
+                          repeatCount="indefinite"
+                        />
+                      </circle>
+                    </>
+                  )}
+
+                  {/* Node label */}
                   <text
-                    dy="24"
+                    x={node.x}
+                    y={node.y + 4}
                     textAnchor="middle"
-                    fill="hsl(192 100% 80%)"
-                    fontSize="9"
+                    fill="hsl(192 100% 90%)"
+                    fontSize={isTool ? "9" : "11"}
+                    fontFamily="Space Mono, monospace"
+                    fontWeight="600"
+                  >
+                    {node.name}
+                  </text>
+
+                  {/* Role label */}
+                  <text
+                    x={node.x}
+                    y={node.y + (isTool ? 32 : 40)}
+                    textAnchor="middle"
+                    fill={isRunning ? "hsl(187 100% 70%)" : "hsl(192 100% 60%)"}
+                    fontSize="8"
                     fontFamily="Space Mono, monospace"
                   >
-                    {nodeDatum.name}
+                    [{node.role}]
                   </text>
-                  {nodeDatum.attributes?.status && (
-                    <text
-                      dy="36"
-                      textAnchor="middle"
-                      fill={isRunning ? "#f59e0b" : "#6b7280"}
-                      fontSize="7"
-                      fontFamily="Space Mono, monospace"
-                    >
-                      [{nodeDatum.attributes.status}]
-                    </text>
-                  )}
-                </g>
+                </motion.g>
               );
+            })}
+
+            {/* Gradients */}
+            <defs>
+              <radialGradient id="runningGradient">
+                <stop offset="0%" stopColor="hsl(187 100% 60%)" />
+                <stop offset="100%" stopColor="hsl(187 100% 40%)" />
+              </radialGradient>
+              <radialGradient id="idleGradient">
+                <stop offset="0%" stopColor="hsl(222 47% 20%)" />
+                <stop offset="100%" stopColor="hsl(222 47% 15%)" />
+              </radialGradient>
+            </defs>
+          </svg>
+
+          {/* Grid overlay for cyberpunk effect */}
+          <div
+            className="absolute inset-0 pointer-events-none opacity-5"
+            style={{
+              backgroundImage: `
+                linear-gradient(hsl(187 100% 50%) 1px, transparent 1px),
+                linear-gradient(90deg, hsl(187 100% 50%) 1px, transparent 1px)
+              `,
+              backgroundSize: "40px 40px",
             }}
           />
         </div>
