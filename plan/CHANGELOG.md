@@ -52,6 +52,12 @@ The format is based on [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 - Responsive grid layouts
 - Adaptive padding and sizing
 
+### UX Improvements
+- Sidebar expands on hover when collapsed (pushes main content)
+- Improved search bar with consistent styling
+- Header buttons with proper spacing
+- Fixed layout issues at widths > 1440px
+
 ## [v0.1.2] - Future
 
 ### Planned (Auth)

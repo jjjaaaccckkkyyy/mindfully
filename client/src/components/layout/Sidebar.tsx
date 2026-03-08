@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   LayoutDashboard,
   Bot,
@@ -14,6 +15,7 @@ interface SidebarProps {
   onToggle: () => void;
   isMobile?: boolean;
   onCloseMobile?: () => void;
+  onHoverChange?: (hovered: boolean) => void;
 }
 
 const navItems = [
@@ -29,14 +31,31 @@ export function Sidebar({
   onToggle,
   isMobile,
   onCloseMobile,
+  onHoverChange,
 }: SidebarProps) {
+  const [isHovered, setIsHovered] = useState(false);
   const isCollapsed = isMobile ? false : collapsed;
+  const isExpanded = isCollapsed ? isHovered : false;
+
+  const handleMouseEnter = () => {
+    if (isCollapsed) {
+      setIsHovered(true);
+      onHoverChange?.(true);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    onHoverChange?.(false);
+  };
 
   return (
     <aside
       className={`h-screen border-r border-[hsl(187_100%_50%/0.1)] bg-[hsl(222_47%_8%)] transition-all duration-300 ${
-        isCollapsed ? "w-16" : "w-64"
+        isCollapsed && !isExpanded ? "w-16" : "w-64"
       } ${isMobile ? "w-64" : ""}`}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       style={{
         background:
           "linear-gradient(180deg, hsl(222 47% 10%) 0%, hsl(222 47% 6%) 100%)",
@@ -47,21 +66,27 @@ export function Sidebar({
         {isMobile && onCloseMobile && (
           <button
             onClick={onCloseMobile}
-            className="flex h-8 w-8 items-center justify-center rounded border border-[hsl(187_100%_50%/0.2)] bg-[hsl(187_100%_50%/0.05)] lg:hidden"
+            className="flex h-8 w-8 items-center justify-center rounded border border-[hsl(187_100%_50%/0.2)] bg-[hsl(187_100%_50%/0.05)]"
           >
             <X className="h-4 w-4 text-[hsl(187_100%_70%)]" />
           </button>
         )}
 
-        {!isCollapsed && (
+        {!isCollapsed && !isExpanded && (
           <span className="font-display text-lg md:text-xl font-semibold tracking-widest text-gradient-cyber truncate">
             Mindful
           </span>
         )}
 
-        {isCollapsed && (
+        {isCollapsed && !isExpanded && (
           <span className="mx-auto font-display text-xl font-semibold tracking-widest text-gradient-cyber">
             M
+          </span>
+        )}
+
+        {(isExpanded || !isCollapsed) && (
+          <span className="font-display text-lg md:text-xl font-semibold tracking-widest text-gradient-cyber truncate">
+            Mindful
           </span>
         )}
 
@@ -105,15 +130,15 @@ export function Sidebar({
                   : "group-hover:text-[hsl(187_100%_70%)]"
               }`}
             />
-            {!isCollapsed && (
+            {(!isCollapsed || isExpanded) && (
               <span className="relative z-10 truncate">{item.label}</span>
             )}
           </a>
         ))}
       </nav>
 
-      {/* Desktop toggle button */}
-      {!isMobile && isCollapsed && (
+      {/* Desktop toggle button - bottom right when collapsed */}
+      {!isMobile && isCollapsed && !isExpanded && (
         <button
           onClick={onToggle}
           className="absolute bottom-4 right-4 flex h-8 w-8 items-center justify-center rounded border border-[hsl(187_100%_50%/0.2)] bg-[hsl(187_100%_50%/0.05)] text-muted-foreground transition-all duration-300 hover:border-[hsl(187_100%_50%/0.5)] hover:bg-[hsl(187_100%_50%/0.15)] hover:text-[hsl(187_100%_70%)]"

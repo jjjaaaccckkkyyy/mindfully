@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Menu } from 'lucide-react';
-import { Sidebar } from './Sidebar';
-import { Header } from './Header';
+import { useState, useEffect } from "react";
+import { Menu } from "lucide-react";
+import { Sidebar } from "./Sidebar";
+import { Header } from "./Header";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -9,6 +9,7 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -22,15 +23,24 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     };
 
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
+
+  // Calculate actual sidebar width for main content margin
+  const getSidebarWidth = () => {
+    if (isMobile) return 0;
+    if (sidebarCollapsed) {
+      return sidebarHovered ? 256 : 64; // w-64 or w-16
+    }
+    return 256; // w-64
+  };
 
   return (
     <div
       className="min-h-screen"
       style={{
-        background: 'hsl(222 47% 6%)',
+        background: "hsl(222 47% 6%)",
       }}
     >
       {/* Mobile menu button */}
@@ -56,9 +66,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         className={`fixed left-0 top-0 z-50 h-screen transition-transform duration-300 ${
           isMobile
             ? mobileMenuOpen
-              ? 'translate-x-0'
-              : '-translate-x-full'
-            : ''
+              ? "translate-x-0"
+              : "-translate-x-full"
+            : ""
         }`}
       >
         <Sidebar
@@ -66,14 +76,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
           isMobile={isMobile}
           onCloseMobile={() => setMobileMenuOpen(false)}
+          onHoverChange={setSidebarHovered}
         />
       </div>
 
       {/* Main content - always has left margin */}
       <div
-        className={`min-h-screen transition-all duration-300 ${
-          isMobile ? 'ml-0' : sidebarCollapsed ? 'ml-16' : 'ml-64'
-        }`}
+        className="min-h-screen transition-all duration-300"
+        style={{
+          marginLeft: `${getSidebarWidth()}px`,
+        }}
       >
         {/* Mobile header */}
         {isMobile && (
@@ -81,8 +93,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             className="sticky top-0 z-30 flex h-14 items-center border-b border-[hsl(187_100%_50%/0.1)] px-4 backdrop-blur-xl"
             style={{
               background:
-                'linear-gradient(180deg, hsl(222 47% 10% / 0.95) 0%, hsl(222 47% 8% / 0.9) 100%)',
-              boxShadow: '0 4px 20px hsl(0 0% 0% / 0.2)',
+                "linear-gradient(180deg, hsl(222 47% 10% / 0.95) 0%, hsl(222 47% 8% / 0.9) 100%)",
+              boxShadow: "0 4px 20px hsl(0 0% 0% / 0.2)",
             }}
           >
             <button
@@ -104,7 +116,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <main
           className="flex-1 p-4 md:p-6 lg:p-8"
           style={{
-            background: 'hsl(222 47% 6%)',
+            background: "hsl(222 47% 6%)",
           }}
         >
           {children}
