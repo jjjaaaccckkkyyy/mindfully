@@ -18,6 +18,17 @@ This document outlines the development workflow for the Mindful platform. The li
 - Visual verification via agent-browser snapshots
 - No PR merge without passing tests and visual review
 
+### Screenshot Testing
+- Use agent-browser for visual testing
+- Screenshots saved to: `client/screenshots/`
+- Test various viewport sizes: mobile (375px), tablet (768px), desktop (1440px), wide (1920px)
+- Command example:
+  ```bash
+  npx agent-browser open http://localhost:5173 --viewport-width 1920 && \
+    npx agent-browser wait --load networkidle && \
+    npx agent-browser screenshot client/screenshots/desktop.png
+  ```
+
 ---
 
 ## Backend / Library Development

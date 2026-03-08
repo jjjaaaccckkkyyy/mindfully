@@ -22,11 +22,11 @@ The format is based on [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 - Per-token pricing model
 - 99% SLA target
 
-## [v0.1.1] - Future
+## [v0.1.1] - 2026-03-08
 
-### Planned (Client Stack)
-- React 19 + Vite (to be enhanced)
-- Tailwind CSS + shadcn/ui
+### Completed
+- React 19 + Vite (enhanced)
+- Tailwind CSS + shadcn/ui theming
 - Lucide React (icons)
 - Motion (animation)
 - Recharts (charts)
@@ -36,6 +36,21 @@ The format is based on [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 - Activity chart (Recharts)
 - Agent tree visualization (React D3 Tree)
 - Recent activity feed
+
+### Design System Added
+- **Cyberpunk theme** (futuristic aesthetic)
+- Typography: Orbitron (display) + Space Mono (body)
+- Color palette: Deep space backgrounds (#0a0a12), Neon cyan accents (#00e5ff)
+- Glassmorphism cards with neon glow borders
+- Staggered fade-in animations on page load
+- Theme documentation in plan/THEME.md
+
+### Mobile Responsiveness
+- Collapsible sidebar (desktop) / drawer (mobile)
+- Mobile menu button with overlay
+- Touch-friendly interactions
+- Responsive grid layouts
+- Adaptive padding and sizing
 
 ## [v0.1.2] - Future
 

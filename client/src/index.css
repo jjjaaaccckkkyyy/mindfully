@@ -1,0 +1,198 @@
+@import "tailwindcss";
+@import "@fontsource/orbitron/400.css";
+@import "@fontsource/orbitron/500.css";
+@import "@fontsource/orbitron/600.css";
+@import "@fontsource/orbitron/700.css";
+@import "@fontsource/space-mono/400.css";
+@import "@fontsource/space-mono/700.css";
+
+:root {
+  --background: 222 47% 6%;
+  --foreground: 192 100% 98%;
+  --card: 222 47% 8%;
+  --card-foreground: 192 100% 98%;
+  --popover: 222 47% 10%;
+  --popover-foreground: 192 100% 98%;
+  --primary: 187 100% 50%;
+  --primary-foreground: 222 47% 6%;
+  --secondary: 222 47% 12%;
+  --secondary-foreground: 192 100% 98%;
+  --muted: 222 47% 14%;
+  --muted-foreground: 192 100% 60%;
+  --accent: 187 100% 50%;
+  --accent-foreground: 222 47% 6%;
+  --destructive: 0 100% 50%;
+  --destructive-foreground: 192 100% 98%;
+  --border: 222 47% 18%;
+  --input: 222 47% 18%;
+  --ring: 187 100% 50%;
+  --radius: 0.25rem;
+
+  --neon-cyan: 187 100% 50%;
+  --neon-magenta: 300 100% 50%;
+  --neon-blue: 220 100% 50%;
+  --charcoal-deep: 222 47% 4%;
+  --charcoal-mid: 222 47% 10%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background: 
+    radial-gradient(ellipse at 0% 0%, hsl(187 100% 50% / 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 100% 100%, hsl(300 100% 50% / 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(222 47% 8%) 0%, hsl(222 47% 4%) 100%),
+    hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: 'Space Mono', monospace;
+  min-height: 100vh;
+  letter-spacing: -0.02em;
+}
+
+.font-display {
+  font-family: 'Orbitron', sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.font-mono {
+  font-family: 'Space Mono', monospace;
+}
+
+@keyframes grain {
+  0%, 100% { transform: translate(0, 0); }
+  10% { transform: translate(-5%, -10%); }
+  20% { transform: translate(-15%, 5%); }
+  30% { transform: translate(7%, -25%); }
+  40% { transform: translate(-5%, 25%); }
+  50% { transform: translate(-15%, 10%); }
+  60% { transform: translate(15%, 0%); }
+  70% { transform: translate(0%, 15%); }
+  80% { transform: translate(3%, 35%); }
+  90% { transform: translate(-10%, 10%); }
+}
+
+.grain-overlay {
+  position: fixed;
+  top: -50%;
+  left: -50%;
+  right: -50%;
+  bottom: -50%;
+  width: 200%;
+  height: 200%;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.025;
+  pointer-events: none;
+  animation: grain 8s steps(10) infinite;
+  z-index: 9999;
+}
+
+.card-cyber {
+  background: linear-gradient(135deg, hsl(222 47% 10% / 0.9) 0%, hsl(222 47% 6% / 0.95) 100%);
+  border: 1px solid hsl(187 100% 50% / 0.15);
+  box-shadow: 
+    0 0 0 1px hsl(0 0% 0% / 0.3),
+    0 4px 24px -4px hsl(0 0% 0% / 0.5),
+    inset 0 1px 0 hsl(187 100% 50% / 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.card-cyber::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, hsl(187 100% 50% / 0.5), transparent);
+}
+
+.card-cyber:hover {
+  border-color: hsl(187 100% 50% / 0.4);
+  box-shadow: 
+    0 0 0 1px hsl(187 100% 50% / 0.2),
+    0 0 20px hsl(187 100% 50% / 0.15),
+    0 8px 32px -4px hsl(0 0% 0% / 0.6),
+    inset 0 1px 0 hsl(187 100% 50% / 0.1);
+}
+
+.glow-neon {
+  box-shadow: 0 0 20px hsl(187 100% 50% / 0.3), 0 0 40px hsl(187 100% 50% / 0.1);
+}
+
+.text-gradient-cyber {
+  background: linear-gradient(135deg, hsl(187 100% 70%) 0%, hsl(187 100% 50%) 50%, hsl(300 100% 60%) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-glow {
+  text-shadow: 0 0 10px hsl(187 100% 50% / 0.5), 0 0 20px hsl(187 100% 50% / 0.3);
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 5px hsl(187 100% 50% / 0.3); }
+  50% { box-shadow: 0 0 20px hsl(187 100% 50% / 0.5), 0 0 30px hsl(187 100% 50% / 0.2); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 0%,
+    hsl(var(--muted-foreground) / 0.1) 50%,
+    hsl(var(--muted)) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(222 47% 8%);
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(187 100% 50% / 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(187 100% 50% / 0.5);
+}
+
+::selection {
+  background: hsl(187 100% 50% / 0.3);
+  color: hsl(192 100% 98%);
+}

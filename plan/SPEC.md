@@ -5,7 +5,7 @@
 | Version | Status | Description |
 |---------|--------|-------------|
 | v0.1.0 | ✅ Built | Basic monorepo scaffold |
-| v0.1.1 | 🔜 Planned | Client stack (Tailwind, dashboard) |
+| v0.1.1 | ✅ Built | Client stack (Tailwind, dashboard) |
 | v0.1.2 | 🔜 Planned | Auth (OAuth) |
 | v0.1.3 | 🔜 Planned | Agent framework, database |
 
@@ -41,12 +41,13 @@
 | Component | Technology |
 |-----------|------------|
 | Framework | React 19 + Vite |
-| Styling | Tailwind CSS + shadcn/ui |
+| Styling | Tailwind CSS + shadcn/ui theming |
 | Icons | Lucide React |
 | Animation | Motion |
 | Charts | Recharts |
 | Visualization | React D3 Tree |
-| Layout | Classic dashboard (sidebar + header + content) |
+| Layout | Dashboard (sidebar + header + content) |
+| Theme | Cyberpunk (Orbitron + Space Mono) |
 
 ### Dashboard Features (v0.1.1)
 
@@ -132,7 +133,17 @@
 
 ## Version
 
-Current: **v0.1.0** (see [CHANGELOG.md](./CHANGELOG.md) for details)
+Current: **v0.1.1** (see [CHANGELOG.md](./CHANGELOG.md) for details)
+
+## Theme: Cyberpunk
+
+See [THEME.md](./THEME.md) for detailed design system documentation.
+
+### Theme Features
+- **Typography**: Orbitron (display) + Space Mono (body)
+- **Colors**: Deep space dark (#0a0a12) + Neon cyan (#00e5ff)
+- **Effects**: Glassmorphism cards, neon glow borders, scanline overlay
+- **Animations**: Staggered fade-in, glow pulse on status indicators
 
 ## Development Lifecycle
 

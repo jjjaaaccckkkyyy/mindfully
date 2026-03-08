@@ -14,17 +14,34 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fontsource/cormorant-garamond": "^5.2.11",
+    "@fontsource/dm-sans": "^5.2.8",
+    "@fontsource/orbitron": "^5.2.8",
+    "@fontsource/space-mono": "^5.2.9",
+    "@tailwindcss/vite": "^4.2.1",
+    "autoprefixer": "^10.4.27",
+    "lucide-react": "^0.577.0",
+    "motion": "^12.35.1",
+    "postcss": "^8.5.8",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-d3-tree": "^3.6.6",
+    "react-dom": "^19.0.0",
+    "recharts": "^3.8.0",
+    "tailwindcss": "^4.2.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",
     "eslint": "^9.0.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "globals": "^17.4.0",
     "prettier": "^3.4.0",
     "typescript": "^5.7.0",
+    "typescript-eslint": "^8.56.1",
     "vite": "^6.0.0",
     "vitest": "^2.0.0"
   }
