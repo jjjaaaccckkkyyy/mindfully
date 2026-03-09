@@ -1,9 +1,22 @@
+import 'dotenv/config';
 import express from 'express';
 import { createExpressMiddleware } from '@trpc/server/adapters/express';
+import session from 'express-session';
 import { appRouter } from './router';
+import authRouter from './router/auth';
+import { passport, getSessionConfig } from './auth';
+import { db } from './db';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.use(session(getSessionConfig()));
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 app.use(
   '/trpc',
@@ -12,8 +25,15 @@ app.use(
   })
 );
 
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' });
+app.use('/auth', authRouter);
+
+app.get('/health', async (_req, res) => {
+  try {
+    await db.query('SELECT 1');
+    res.json({ status: 'ok', database: 'connected' });
+  } catch (error) {
+    res.status(503).json({ status: 'error', database: 'disconnected' });
+  }
 });
 
 app.listen(PORT, () => {

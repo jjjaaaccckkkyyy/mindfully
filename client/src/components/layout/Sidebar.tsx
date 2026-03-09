@@ -34,28 +34,41 @@ export function Sidebar({
   onHoverChange,
 }: SidebarProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [hoverDisabled, setHoverDisabled] = useState(false);
+
   const isCollapsed = isMobile ? false : collapsed;
-  const isExpanded = isCollapsed ? isHovered : false;
+  const shouldShowExpanded = hoverDisabled ? !collapsed : (isCollapsed ? isHovered : false);
 
   const handleMouseEnter = () => {
-    if (isCollapsed) {
+    if (isCollapsed && !hoverDisabled) {
       setIsHovered(true);
       onHoverChange?.(true);
     }
   };
 
   const handleMouseLeave = () => {
+    if (!hoverDisabled) {
+      setIsHovered(false);
+      onHoverChange?.(false);
+    }
+  };
+
+  const handleToggle = () => {
+    if (collapsed) {
+      setHoverDisabled(true);
+    } else {
+      setHoverDisabled(false);
+    }
     setIsHovered(false);
     onHoverChange?.(false);
+    onToggle();
   };
 
   return (
     <aside
-      className={`h-screen border-r border-[hsl(187_100%_50%/0.1)] bg-[hsl(222_47%_8%)] transition-all duration-300 ${
-        isCollapsed && !isExpanded ? "w-16" : "w-64"
+      className={`relative h-screen border-r border-[hsl(187_100%_50%/0.1)] bg-[hsl(222_47%_8%)] transition-all duration-300 ${
+        isCollapsed && !shouldShowExpanded ? "w-16" : "w-64"
       } ${isMobile ? "w-64" : ""}`}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
       style={{
         background:
           "linear-gradient(180deg, hsl(222 47% 10%) 0%, hsl(222 47% 6%) 100%)",
@@ -72,35 +85,32 @@ export function Sidebar({
           </button>
         )}
 
-        {!isCollapsed && !isExpanded && (
+        {!isMobile && (
+          <>
+            {isCollapsed && !shouldShowExpanded ? (
+              <span className="mx-auto font-display text-xl font-semibold tracking-widest text-gradient-cyber">
+                M
+              </span>
+            ) : (
+              <span className="font-display text-lg md:text-xl font-semibold tracking-widest text-gradient-cyber truncate">
+                Mindful
+              </span>
+            )}
+          </>
+        )}
+
+        {isMobile && (
           <span className="font-display text-lg md:text-xl font-semibold tracking-widest text-gradient-cyber truncate">
             Mindful
           </span>
-        )}
-
-        {isCollapsed && !isExpanded && (
-          <span className="mx-auto font-display text-xl font-semibold tracking-widest text-gradient-cyber">
-            M
-          </span>
-        )}
-
-        {(isExpanded || !isCollapsed) && (
-          <span className="font-display text-lg md:text-xl font-semibold tracking-widest text-gradient-cyber truncate">
-            Mindful
-          </span>
-        )}
-
-        {!isMobile && !isCollapsed && (
-          <button
-            onClick={onToggle}
-            className="hidden lg:flex h-7 w-7 items-center justify-center rounded border border-[hsl(187_100%_50%/0.2)] bg-[hsl(187_100%_50%/0.05)] text-muted-foreground transition-all duration-300 hover:border-[hsl(187_100%_50%/0.5)] hover:bg-[hsl(187_100%_50%/0.15)] hover:text-[hsl(187_100%_70%)]"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
         )}
       </div>
 
-      <nav className="space-y-1 p-2 md:p-3">
+      <nav
+        className="space-y-1 p-2 md:p-3"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
         {navItems.map((item, index) => (
           <a
             key={item.href}
@@ -130,20 +140,25 @@ export function Sidebar({
                   : "group-hover:text-[hsl(187_100%_70%)]"
               }`}
             />
-            {(!isCollapsed || isExpanded) && (
+            {(!isCollapsed || shouldShowExpanded) && (
               <span className="relative z-10 truncate">{item.label}</span>
             )}
           </a>
         ))}
       </nav>
 
-      {/* Desktop toggle button - bottom right when collapsed */}
-      {!isMobile && isCollapsed && !isExpanded && (
+      {!isMobile && (
         <button
-          onClick={onToggle}
-          className="absolute bottom-4 right-4 flex h-8 w-8 items-center justify-center rounded border border-[hsl(187_100%_50%/0.2)] bg-[hsl(187_100%_50%/0.05)] text-muted-foreground transition-all duration-300 hover:border-[hsl(187_100%_50%/0.5)] hover:bg-[hsl(187_100%_50%/0.15)] hover:text-[hsl(187_100%_70%)]"
+          onClick={handleToggle}
+          className={`absolute bottom-4 flex h-8 w-8 items-center justify-center rounded border border-[hsl(187_100%_50%/0.2)] bg-[hsl(187_100%_50%/0.05)] text-muted-foreground transition-all duration-300 hover:border-[hsl(187_100%_50%/0.5)] hover:bg-[hsl(187_100%_50%/0.15)] hover:text-[hsl(187_100%_70%)] ${
+            isCollapsed && !shouldShowExpanded ? "right-4" : "right-3"
+          }`}
         >
-          <ChevronRight className="h-4 w-4" />
+          {isCollapsed && !shouldShowExpanded ? (
+            <ChevronRight className="h-4 w-4" />
+          ) : (
+            <ChevronLeft className="h-4 w-4" />
+          )}
         </button>
       )}
     </aside>
