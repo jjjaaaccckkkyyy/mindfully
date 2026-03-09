@@ -5,7 +5,7 @@ import { usersRepository } from '../db/repositories/users';
 import { verificationTokenRepository, passwordResetTokenRepository } from '../db/repositories/tokens';
 import { passwordUtils } from '../auth/utils/password';
 import { tokenUtils } from '../auth/utils/tokens';
-import { sendVerificationEmail, sendPasswordResetEmail } from '../auth';
+import { sendVerificationEmail, sendPasswordResetEmail, generateIdToken } from '../auth';
 import { requireAuth } from '../auth/middleware';
 import { handleGitHubAuth } from '../auth/oauth/github';
 import { handleGoogleAuth } from '../auth/oauth/google';
@@ -57,6 +57,8 @@ router.post('/github/verify', async (req: Request, res: Response) => {
         });
       }
 
+      const idToken = generateIdToken(user, 'github');
+
       return res.json({
         message: 'GitHub authentication successful',
         user: {
@@ -66,6 +68,7 @@ router.post('/github/verify', async (req: Request, res: Response) => {
           avatarUrl: user.avatar_url,
           emailVerified: user.email_verified,
         },
+        idToken,
       });
     });
   } catch (error) {
@@ -87,7 +90,7 @@ router.post('/google/verify', async (req: Request, res: Response) => {
       });
     }
 
-    const { user, idToken } = await handleGoogleAuth(validation.data.code);
+    const { user } = await handleGoogleAuth(validation.data.code);
 
     (req as any).logIn(user, (err: any) => {
       if (err) {
@@ -96,6 +99,8 @@ router.post('/google/verify', async (req: Request, res: Response) => {
           message: 'Failed to establish session',
         });
       }
+
+      const idToken = generateIdToken(user, 'google');
 
       return res.json({
         message: 'Google authentication successful',

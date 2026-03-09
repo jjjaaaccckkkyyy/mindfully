@@ -86,10 +86,7 @@ export async function verifyGoogleCode(code: string): Promise<{
   };
 }
 
-export async function handleGoogleAuth(code: string): Promise<{
-  user: any;
-  idToken?: string;
-}> {
+export async function handleGoogleAuth(code: string): Promise<{ user: any }> {
   const profile = await verifyGoogleCode(code);
   const user = await findOrCreateOAuthUser('google', profile.id, {
     email: profile.email,
@@ -100,8 +97,5 @@ export async function handleGoogleAuth(code: string): Promise<{
     refreshToken: profile.refreshToken,
   });
 
-  return {
-    user,
-    idToken: profile.idToken,
-  };
+  return { user };
 }

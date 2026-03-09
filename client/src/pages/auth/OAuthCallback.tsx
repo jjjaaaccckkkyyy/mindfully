@@ -39,8 +39,8 @@ export function OAuthCallback() {
 
         const data = await response.json();
 
-        if (provider === "google" && data.idToken) {
-          localStorage.setItem("google_id_token", data.idToken);
+        if (data.idToken) {
+          localStorage.setItem("id_token", data.idToken);
         }
 
         navigate("/");

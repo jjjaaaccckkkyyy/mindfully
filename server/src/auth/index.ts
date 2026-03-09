@@ -2,7 +2,6 @@ import passport from './passport';
 import { getSessionConfig } from './sessions';
 import { ConsoleEmailService } from '../email/console';
 
-// Initialize strategies
 import './strategies/github';
 import './strategies/google';
 import './strategies/local';
@@ -14,6 +13,7 @@ export { passwordUtils } from './utils/password';
 export { tokenUtils } from './utils/tokens';
 export { pkceUtils } from './utils/pkce';
 export { findOrCreateOAuthUser } from './passport';
+export { generateIdToken, verifyIdToken } from './utils/id-token';
 
 // Email service
 const emailService = new ConsoleEmailService();
