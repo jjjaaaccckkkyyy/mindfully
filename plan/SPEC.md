@@ -6,7 +6,7 @@
 |---------|--------|-------------|
 | v0.1.0 | ✅ Built | Basic monorepo scaffold |
 | v0.1.1 | ✅ Built | Client stack (Tailwind, dashboard) |
-| v0.1.2 | 🔜 Planned | Auth (OAuth) |
+| v0.1.2 | ✅ Built | Auth (OAuth 2.0 + JWT) |
 | v0.1.3 | 🔜 Planned | Agent framework, database |
 
 ---
@@ -68,9 +68,37 @@
 | Vector DB | Qdrant |
 | Compute | EKS + EKS Anywhere |
 | Inter-Agent Protocol | A2A Protocol + MCP |
-| Database | PostgreSQL |
+| Database | PostgreSQL (pg driver, no ORM) |
 | Queue | AWS SQS |
-| Auth | Auth.js (NextAuth) v5 + OAuth 2.0 (PKCE) |
+| Auth | Passport.js + OAuth 2.0 + JWT |
+| Session | express-session + connect-pg-simple |
+
+### OAuth 2.0 Implementation (v0.1.2)
+
+**Flow**: Client-side OAuth with backend verification
+
+| Provider | Tokens | Storage |
+|----------|--------|---------|
+| GitHub | access_token | Backend (oauth_accounts table) |
+| Google | access_token + refresh_token | Backend (oauth_accounts table) |
+| Both | id_token (JWT) | Frontend (localStorage) |
+
+**Token Types**:
+- **id_token**: Custom JWT with user info (1 hour expiry)
+- **access_token**: Provider API access (stored in database)
+- **refresh_token**: Token refresh (Google only, stored in database)
+- **session cookie**: Backend authentication
+
+**Endpoints**:
+- `POST /auth/github/verify` - Verify GitHub OAuth code
+- `POST /auth/google/verify` - Verify Google OAuth code
+- `POST /auth/register` - Email registration
+- `POST /auth/login` - Email login
+- `POST /auth/logout` - Logout
+- `GET /auth/me` - Get current user
+- `GET /auth/verify-email` - Email verification
+- `POST /auth/forgot-password` - Password reset request
+- `POST /auth/reset-password` - Password reset
 
 ### OAuth Providers (v0.1.2)
 - GitHub
@@ -78,7 +106,10 @@
 
 ### User Management (v0.1.2)
 - Persistent users stored in PostgreSQL
-- Session-based authentication
+- Session-based authentication (PostgreSQL-backed)
+- OAuth account linking
+- Email verification tokens
+- Password reset tokens
 
 ---
 
@@ -133,7 +164,7 @@
 
 ## Version
 
-Current: **v0.1.1** (see [CHANGELOG.md](./CHANGELOG.md) for details)
+Current: **v0.1.2** (see [CHANGELOG.md](./CHANGELOG.md) for details)
 
 ## Theme: Cyberpunk
 

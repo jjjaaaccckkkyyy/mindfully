@@ -4,23 +4,64 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v0.1.0] - 2026-03-07
+## [v0.1.2] - 2026-03-09
 
-### Added
-- Initial monorepo scaffold with pnpm workspaces
-- Express + tRPC server with hello endpoint
-- React 19 + Vite client (bare bones)
-- Core agent type definitions (Agent, Tool, Memory interfaces)
-- In-memory store implementation for memory service
-- AGENTS.md coding guidelines
+### Completed
 
-### Defined Components
-- Express + tRPC API layer
-- LangChain/LangGraph agent framework
-- Qdrant vector database for RAG memory
-- EKS + EKS Anywhere hybrid deployment
-- Per-token pricing model
-- 99% SLA target
+**Authentication System**
+- Passport.js authentication with session management
+- OAuth 2.0 providers: GitHub, Google
+- Client-side OAuth flow with backend verification
+- Email registration with verification
+- Password reset functionality
+- PostgreSQL session storage (connect-pg-simple)
+- JWT id_token generation (jsonwebtoken)
+
+**Backend Auth**
+- User repositories (PostgreSQL with pg driver)
+- OAuth account repositories
+- Token repositories (email verification, password reset)
+- Password hashing (bcrypt, 12 rounds)
+- Custom JWT id_token for all providers
+- Access token and refresh token storage
+- Token update on login (replaces old tokens)
+
+**Auth Endpoints**
+- `POST /auth/github/verify` - GitHub OAuth verification
+- `POST /auth/google/verify` - Google OAuth verification
+- `POST /auth/register` - Email registration
+- `POST /auth/login` - Email login
+- `POST /auth/logout` - Logout
+- `GET /auth/me` - Get current user
+- `GET /auth/verify-email` - Email verification
+- `POST /auth/resend-verification` - Resend verification email
+- `POST /auth/forgot-password` - Password reset request
+- `POST /auth/reset-password` - Password reset
+
+**Frontend Auth**
+- Login page with cyberpunk theme
+- OAuth callback handler
+- React Router for client-side routing
+- id_token storage in localStorage
+
+**Infrastructure**
+- Docker Compose for PostgreSQL
+- CORS configuration for frontend-backend
+- Environment configuration (.env files)
+- Database initialization script
+
+### Changed
+- Passport.js instead of Auth.js (NextAuth)
+- PostgreSQL with pg driver instead of Prisma/Drizzle
+- Client-side OAuth flow instead of server-side redirects
+
+### Token Strategy
+| Token | Storage | Purpose | Lifetime |
+|-------|---------|---------|----------|
+| id_token | Frontend localStorage | User identity (JWT) | 1 hour |
+| access_token | Backend database | API calls to provider | 1 hour |
+| refresh_token | Backend database | Refresh access tokens | Long-lived |
+| session cookie | Browser | Auth with backend | Session-based |
 
 ## [v0.1.1] - 2026-03-08
 
@@ -61,20 +102,28 @@ The format is based on [Semantic Versioning](https://semver.org/spec/v2.0.0.html
   - Radial gradient nodes with pulse animations
   - Connection lines with hover effects
   - Grid overlay for cyberpunk effect
-- Fixed layout issues at widths > 1440px
 
-## [v0.1.2] - Future
+## [v0.1.0] - 2026-03-07
 
-### Planned (Auth)
-- Auth.js (NextAuth) v5 for authentication
-- OAuth 2.0 with PKCE support
-- GitHub and Google OAuth providers
-- Persistent users in PostgreSQL
+### Added
+- Initial monorepo scaffold with pnpm workspaces
+- Express + tRPC server with hello endpoint
+- React 19 + Vite client (bare bones)
+- Core agent type definitions (Agent, Tool, Memory interfaces)
+- In-memory store implementation for memory service
+- AGENTS.md coding guidelines
+
+### Defined Components
+- Express + tRPC API layer
+- LangChain/LangGraph agent framework
+- Qdrant vector database for RAG memory
+- EKS + EKS Anywhere hybrid deployment
+- Per-token pricing model
+- 99% SLA target
 
 ## [v0.1.3] - Future
 
 ### Planned (Server)
 - LangChain/LangGraph agent framework integration
 - A2A Protocol + MCP for inter-agent communication
-- PostgreSQL with Prisma/Drizzle ORM
 - AWS SQS task queue
