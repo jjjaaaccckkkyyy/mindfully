@@ -7,11 +7,12 @@ import { passwordUtils } from '../auth/utils/password';
 import { tokenUtils } from '../auth/utils/tokens';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../auth';
 import { requireAuth } from '../auth/middleware';
+import { handleGitHubAuth } from '../auth/oauth/github';
+import { handleGoogleAuth } from '../auth/oauth/google';
 import { z } from 'zod';
 
 const router: RouterType = Router();
 
-// Validation schemas
 const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
@@ -32,24 +33,90 @@ const resetPasswordSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
 });
 
-// OAuth routes
-router.get('/github', passport.authenticate('github'));
-router.get(
-  '/github/callback',
-  passport.authenticate('github', { failureRedirect: '/login?error=github' }),
-  (_req: Request, res: Response) => {
-    res.redirect('/dashboard');
-  }
-);
+const oauthVerifySchema = z.object({
+  code: z.string(),
+});
 
-router.get('/google', passport.authenticate('google', { scope: ['email', 'profile'] }));
-router.get(
-  '/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login?error=google' }),
-  (_req: Request, res: Response) => {
-    res.redirect('/dashboard');
+router.post('/github/verify', async (req: Request, res: Response) => {
+  try {
+    const validation = oauthVerifySchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: validation.error.errors,
+      });
+    }
+
+    const user = await handleGitHubAuth(validation.data.code);
+
+    (req as any).logIn(user, (err: any) => {
+      if (err) {
+        return res.status(500).json({
+          error: 'Login failed',
+          message: 'Failed to establish session',
+        });
+      }
+
+      return res.json({
+        message: 'GitHub authentication successful',
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          avatarUrl: user.avatar_url,
+          emailVerified: user.email_verified,
+        },
+      });
+    });
+  } catch (error) {
+    console.error('GitHub OAuth error:', error);
+    res.status(401).json({
+      error: 'Authentication failed',
+      message: error instanceof Error ? error.message : 'GitHub authentication failed',
+    });
   }
-);
+});
+
+router.post('/google/verify', async (req: Request, res: Response) => {
+  try {
+    const validation = oauthVerifySchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: validation.error.errors,
+      });
+    }
+
+    const { user, idToken } = await handleGoogleAuth(validation.data.code);
+
+    (req as any).logIn(user, (err: any) => {
+      if (err) {
+        return res.status(500).json({
+          error: 'Login failed',
+          message: 'Failed to establish session',
+        });
+      }
+
+      return res.json({
+        message: 'Google authentication successful',
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          avatarUrl: user.avatar_url,
+          emailVerified: user.email_verified,
+        },
+        idToken,
+      });
+    });
+  } catch (error) {
+    console.error('Google OAuth error:', error);
+    res.status(401).json({
+      error: 'Authentication failed',
+      message: error instanceof Error ? error.message : 'Google authentication failed',
+    });
+  }
+});
 
 // Registration
 router.post('/register', async (req: Request, res: Response) => {

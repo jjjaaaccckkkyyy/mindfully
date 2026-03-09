@@ -29,16 +29,26 @@ async function findOrCreateOAuthUser(
     email: string;
     name?: string;
     avatarUrl?: string;
+  },
+  tokens?: {
+    accessToken?: string;
+    refreshToken?: string;
   }
 ): Promise<User> {
-  // Check if OAuth account exists
   const existingOAuthAccount = await oauthAccountRepository.findByProviderAndId(
     provider,
     providerUserId
   );
 
   if (existingOAuthAccount) {
-    // Get existing user
+    if (tokens?.accessToken) {
+      await oauthAccountRepository.updateTokens(
+        existingOAuthAccount.id,
+        tokens.accessToken,
+        tokens.refreshToken
+      );
+    }
+
     const user = await usersRepository.findById(existingOAuthAccount.user_id);
     if (!user) {
       throw new Error('User not found for existing OAuth account');
@@ -46,24 +56,23 @@ async function findOrCreateOAuthUser(
     return user;
   }
 
-  // Check if user with email exists
   let user = await usersRepository.findByEmail(profile.email);
 
   if (!user) {
-    // Create new user
     user = await usersRepository.create({
       email: profile.email,
       name: profile.name,
       avatarUrl: profile.avatarUrl,
-      emailVerified: true, // OAuth providers verify email
+      emailVerified: true,
     });
   }
 
-  // Link OAuth account to user
   await oauthAccountRepository.create({
     userId: user.id,
     provider,
     providerUserId,
+    accessToken: tokens?.accessToken,
+    refreshToken: tokens?.refreshToken,
   });
 
   return user;
