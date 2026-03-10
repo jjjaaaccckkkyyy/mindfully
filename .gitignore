@@ -6,3 +6,6 @@ dist
 .env.local
 **/screenshots/*.png
 cookies.txt
+
+# Test coverage
+server/coverage/
