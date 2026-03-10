@@ -54,13 +54,13 @@ export function OAuthCallback() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4" style={{ background: "hsl(222 47% 6%)" }}>
-        <div className="text-center space-y-4">
-          <h1 className="font-display text-2xl font-bold text-red-400">Authentication Failed</h1>
-          <p className="font-mono text-sm text-muted-foreground">{error}</p>
+      <div className="auth-page">
+        <div className="callback-error space-y-4">
+          <h1>Authentication Failed</h1>
+          <p>{error}</p>
           <button
             onClick={() => navigate("/login")}
-            className="rounded border border-[hsl(187_100%_50%/0.3)] bg-[hsl(187_100%_50%/0.05)] px-6 py-2 font-mono text-sm uppercase tracking-wider text-[hsl(187_100%_70%)] hover:bg-[hsl(187_100%_50%/0.15)]"
+            className="auth-button"
           >
             Back to Login
           </button>
@@ -70,10 +70,10 @@ export function OAuthCallback() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4" style={{ background: "hsl(222 47% 6%)" }}>
-      <div className="text-center space-y-4">
-        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-[hsl(187_100%_50%/0.3)] border-t-[hsl(187_100%_70%)]" />
-        <p className="font-mono text-sm text-muted-foreground uppercase tracking-wider">
+    <div className="auth-page">
+      <div className="callback-loading space-y-4">
+        <div className="callback-spinner" />
+        <p className="auth-subtitle">
           Authenticating...
         </p>
       </div>

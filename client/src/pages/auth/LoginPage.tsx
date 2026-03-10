@@ -27,22 +27,22 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4" style={{ background: "hsl(222 47% 6%)" }}>
+    <div className="auth-page">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
-          <h1 className="font-display text-5xl font-bold tracking-widest text-gradient-cyber">
+          <h1 className="auth-title">
             Mindful
           </h1>
-          <p className="mt-4 font-mono text-sm text-muted-foreground uppercase tracking-wider">
+          <p className="auth-subtitle">
             Multi-Agent AI Platform
           </p>
         </div>
 
-        <div className="space-y-4 rounded-lg border border-[hsl(187_100%_50%/0.2)] bg-[hsl(222_47%_10%)] p-8" style={{ boxShadow: "0 0 30px hsl(187 100% 50% / 0.1)" }}>
+        <div className="auth-card space-y-4">
           <button
             onClick={handleGitHubLogin}
             disabled={isLoading}
-            className="flex w-full items-center justify-center gap-3 rounded border border-[hsl(187_100%_50%/0.3)] bg-[hsl(187_100%_50%/0.05)] px-6 py-3 font-mono text-sm uppercase tracking-wider text-[hsl(187_100%_70%)] transition-all duration-300 hover:border-[hsl(187_100%_50%/0.6)] hover:bg-[hsl(187_100%_50%/0.15)] disabled:opacity-50"
+            className="auth-button"
           >
             <Github className="h-5 w-5" />
             {isLoading ? "Connecting..." : "Sign in with GitHub"}
@@ -51,7 +51,7 @@ export function LoginPage() {
           <button
             onClick={handleGoogleLogin}
             disabled={isLoading}
-            className="flex w-full items-center justify-center gap-3 rounded border border-[hsl(187_100%_50%/0.3)] bg-[hsl(187_100%_50%/0.05)] px-6 py-3 font-mono text-sm uppercase tracking-wider text-[hsl(187_100%_70%)] transition-all duration-300 hover:border-[hsl(187_100%_50%/0.6)] hover:bg-[hsl(187_100%_50%/0.15)] disabled:opacity-50"
+            className="auth-button"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path
@@ -75,7 +75,7 @@ export function LoginPage() {
           </button>
         </div>
 
-        <p className="text-center font-mono text-xs text-muted-foreground">
+        <p className="auth-footer">
           By signing in, you agree to our Terms of Service and Privacy Policy
         </p>
       </div>

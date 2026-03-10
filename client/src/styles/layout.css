@@ -1,0 +1,84 @@
+/* Layout styles */
+.layout-page {
+  min-height: 100vh;
+  background: hsl(222 47% 6%);
+}
+
+.layout-header {
+  background: linear-gradient(180deg, hsl(222 47% 10% / 0.95) 0%, hsl(222 47% 8% / 0.9) 100%);
+  box-shadow: 0 4px 20px hsl(0 0% 0% / 0.2);
+}
+
+.layout-sidebar {
+  background: linear-gradient(180deg, hsl(222 47% 10%) 0%, hsl(222 47% 6%) 100%);
+  box-shadow: 4px 0 24px hsl(0 0% 0% / 0.3);
+}
+
+/* Sidebar */
+.sidebar {
+  background: linear-gradient(180deg, hsl(222 47% 10%) 0%, hsl(222 47% 6%) 100%);
+  box-shadow: 4px 0 24px hsl(0 0% 0% / 0.3);
+}
+
+.sidebar-nav-item {
+  animation: fadeInUp 0.6s ease-out forwards;
+  opacity: 0;
+}
+
+.sidebar-nav-border {
+  box-shadow: inset 0 0 10px hsl(187 100% 50% / 0.1);
+}
+
+.sidebar-toggle {
+  border-color: hsl(187 100% 50% / 0.2);
+  background: hsl(187 100% 50% / 0.05);
+}
+
+.sidebar-toggle:hover {
+  border-color: hsl(187 100% 50% / 0.5);
+  background: hsl(187 100% 50% / 0.15);
+  color: hsl(187 100% 70%);
+}
+
+/* Animation delays */
+.fade-in-delay-0 { animation-delay: 0ms; }
+.fade-in-delay-1 { animation-delay: 100ms; }
+.fade-in-delay-2 { animation-delay: 200ms; }
+.fade-in-delay-3 { animation-delay: 300ms; }
+.fade-in-delay-4 { animation-delay: 400ms; }
+
+/* Status indicator pulse */
+.status-pulse {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 5px hsl(187 100% 50% / 0.3); }
+  50% { box-shadow: 0 0 20px hsl(187 100% 50% / 0.5), 0 0 30px hsl(187 100% 50% / 0.2); }
+}
+
+/* Card styles */
+.card-cyber-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-cyber-glow {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+
+.card-cyber-wrapper:hover .card-cyber-glow {
+  opacity: 1;
+}
+
+.card-cyber-border {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(90deg, transparent, hsl(187 100% 50% / 0.5), transparent);
+}

@@ -6,6 +6,10 @@
 @import "@fontsource/space-mono/400.css";
 @import "@fontsource/space-mono/700.css";
 
+@import "./styles/layout.css";
+@import "./styles/auth.css";
+@import "./styles/dashboard.css";
+
 :root {
   --background: 222 47% 6%;
   --foreground: 192 100% 98%;

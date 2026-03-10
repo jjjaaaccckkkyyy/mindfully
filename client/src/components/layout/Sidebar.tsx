@@ -66,14 +66,9 @@ export function Sidebar({
 
   return (
     <aside
-      className={`relative h-screen border-r border-[hsl(187_100%_50%/0.1)] bg-[hsl(222_47%_8%)] transition-all duration-300 ${
+      className={`sidebar relative h-screen border-r border-[hsl(187_100%_50%/0.1)] bg-[hsl(222_47%_8%)] transition-all duration-300 ${
         isCollapsed && !shouldShowExpanded ? "w-16" : "w-64"
       } ${isMobile ? "w-64" : ""}`}
-      style={{
-        background:
-          "linear-gradient(180deg, hsl(222 47% 10%) 0%, hsl(222 47% 6%) 100%)",
-        boxShadow: "4px 0 24px hsl(0 0% 0% / 0.3)",
-      }}
     >
       <div className="flex h-14 items-center justify-between border-b border-[hsl(187_100%_50%/0.1)] px-3 md:h-16 md:px-4">
         {isMobile && onCloseMobile && (
@@ -120,18 +115,13 @@ export function Sidebar({
               item.href === "/"
                 ? "bg-[hsl(187_100%_50%/0.1)] text-[hsl(187_100%_70%)]"
                 : "text-muted-foreground hover:text-foreground hover:bg-[hsl(187_100%_50%/0.05)]"
-            }`}
+            } sidebar-nav-item`}
             style={{
               animationDelay: `${index * 50}ms`,
             }}
           >
             {item.href === "/" && (
-              <div
-                className="absolute inset-0 rounded border border-[hsl(187_100%_50%/0.2)]"
-                style={{
-                  boxShadow: "inset 0 0 10px hsl(187 100% 50% / 0.1)",
-                }}
-              />
+              <div className="absolute inset-0 rounded border border-[hsl(187_100%_50%/0.2)] sidebar-nav-border" />
             )}
             <item.icon
               className={`h-4 w-4 shrink-0 transition-all duration-300 ${
@@ -150,7 +140,7 @@ export function Sidebar({
       {!isMobile && (
         <button
           onClick={handleToggle}
-          className={`absolute bottom-4 flex h-8 w-8 items-center justify-center rounded border border-[hsl(187_100%_50%/0.2)] bg-[hsl(187_100%_50%/0.05)] text-muted-foreground transition-all duration-300 hover:border-[hsl(187_100%_50%/0.5)] hover:bg-[hsl(187_100%_50%/0.15)] hover:text-[hsl(187_100%_70%)] ${
+          className={`sidebar-toggle absolute bottom-4 flex h-8 w-8 items-center justify-center rounded border border-[hsl(187_100%_50%/0.2)] bg-[hsl(187_100%_50%/0.05)] text-muted-foreground transition-all duration-300 hover:border-[hsl(187_100%_50%/0.5)] hover:bg-[hsl(187_100%_50%/0.15)] hover:text-[hsl(187_100%_70%)] ${
             isCollapsed && !shouldShowExpanded ? "right-4" : "right-3"
           }`}
         >
