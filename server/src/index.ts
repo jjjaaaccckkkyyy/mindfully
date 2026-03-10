@@ -7,9 +7,13 @@ import { appRouter } from './router';
 import authRouter from './router/auth';
 import { passport, getSessionConfig } from './auth';
 import { db } from './db';
+import { initEmailService } from './email';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize email service
+initEmailService();
 
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 

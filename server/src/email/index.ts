@@ -1,16 +1,28 @@
 import { EmailService, ConsoleEmailService, EmailData } from './console';
+import { ResendEmailService } from './resend';
 
 let emailService: EmailService;
 
 export function initEmailService(): EmailService {
-  if (process.env.NODE_ENV === 'production' && process.env.RESEND_API_KEY) {
-    // Lazy load Resend in production
-    const { ResendEmailService } = require('./resend');
-    emailService = new ResendEmailService(process.env.RESEND_API_KEY, process.env.EMAIL_FROM || 'noreply@example.com');
-  } else {
-    emailService = new ConsoleEmailService();
+  // Allow forcing email provider via EMAIL_PROVIDER env var
+  // Options: 'resend' | 'console' | 'auto' (default)
+  const provider = process.env.EMAIL_PROVIDER || 'auto';
+  
+  if (provider === 'resend' || (provider === 'auto' && process.env.NODE_ENV === 'production')) {
+    if (process.env.RESEND_API_KEY && process.env.EMAIL_FROM) {
+      emailService = new ResendEmailService(
+        process.env.RESEND_API_KEY,
+        process.env.EMAIL_FROM
+      );
+      console.log('Email service initialized: Resend');
+      return emailService;
+    } else {
+      console.warn('RESEND_API_KEY or EMAIL_FROM not set, falling back to console');
+    }
   }
   
+  emailService = new ConsoleEmailService();
+  console.log('Email service initialized: Console');
   return emailService;
 }
 
@@ -26,3 +38,4 @@ export async function sendEmail(data: EmailData): Promise<void> {
 }
 
 export type { EmailService, EmailData };
+export * from './templates';
