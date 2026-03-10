@@ -65,6 +65,11 @@ async function findOrCreateOAuthUser(
       avatarUrl: profile.avatarUrl,
       emailVerified: true,
     });
+  } else if (!user.email_verified) {
+    await usersRepository.update(user.id, {
+      emailVerified: true,
+    });
+    user.email_verified = true;
   }
 
   await oauthAccountRepository.create({

@@ -154,7 +154,7 @@ router.post('/register', async (req: Request, res: Response) => {
       });
     }
 
-    // Create user
+    // Create user (email verification pending)
     const passwordHash = await passwordUtils.hash(password);
     const user = await usersRepository.create({
       email,
@@ -163,20 +163,8 @@ router.post('/register', async (req: Request, res: Response) => {
       emailVerified: false,
     });
 
-    // Generate verification token
-    const token = tokenUtils.generateVerificationToken();
-    const expiresAt = tokenUtils.generateExpiry(24); // 24 hours
-    await verificationTokenRepository.create({
-      userId: user.id,
-      token,
-      expiresAt,
-    });
-
-    // Send verification email
-    await sendVerificationEmail(user.email, token);
-
     res.status(201).json({
-      message: 'Registration successful. Please check your email to verify your account.',
+      message: 'Registration successful. You can verify your email by signing in with GitHub or Google.',
       userId: user.id,
     });
   } catch (error) {
