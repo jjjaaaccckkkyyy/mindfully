@@ -12,7 +12,7 @@ The format is based on [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 - Passport.js authentication with session management
 - OAuth 2.0 providers: GitHub, Google
 - Client-side OAuth flow with backend verification
-- Email registration with verification
+- Email registration (OAuth verification required)
 - Password reset functionality
 - PostgreSQL session storage (connect-pg-simple)
 - JWT id_token generation (jsonwebtoken)
@@ -29,20 +29,23 @@ The format is based on [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 **Auth Endpoints**
 - `POST /auth/github/verify` - GitHub OAuth verification
 - `POST /auth/google/verify` - Google OAuth verification
-- `POST /auth/register` - Email registration
+- `POST /auth/register` - Email registration (auto-verified)
 - `POST /auth/login` - Email login
 - `POST /auth/logout` - Logout
 - `GET /auth/me` - Get current user
-- `GET /auth/verify-email` - Email verification
-- `POST /auth/resend-verification` - Resend verification email
+- `GET /auth/verify-email` - Email verification (reserved)
+- `POST /auth/resend-verification` - Resend verification email (reserved)
 - `POST /auth/forgot-password` - Password reset request
 - `POST /auth/reset-password` - Password reset
 
 **Frontend Auth**
 - Login page with cyberpunk theme
+- Email/password registration form
 - OAuth callback handler
 - React Router for client-side routing
 - id_token storage in localStorage
+- Protected routes with authentication guard
+- User menu in header with logout functionality
 
 **Infrastructure**
 - Docker Compose for PostgreSQL
@@ -54,6 +57,14 @@ The format is based on [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 - Passport.js instead of Auth.js (NextAuth)
 - PostgreSQL with pg driver instead of Prisma/Drizzle
 - Client-side OAuth flow instead of server-side redirects
+- Email verification via OAuth (email registration → OAuth login → verified)
+- OAuth linking updates email_verified to true
+
+### Fixed
+- CSS build errors (circular @apply references in layout.css)
+- Text input width issues in login form (flexbox layout)
+- Login/logout flow now working end-to-end
+- Protected routes redirect properly
 
 ### Token Strategy
 | Token | Storage | Purpose | Lifetime |

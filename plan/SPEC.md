@@ -111,6 +111,90 @@
 - Email verification tokens
 - Password reset tokens
 
+### Email Verification Strategy (v0.1.2)
+
+Since email is the primary identity for all authentication methods:
+
+| Scenario | Behavior |
+|----------|----------|
+| **Email Registration** | `email_verified = false` (pending verification) |
+| **OAuth Registration (new user)** | `email_verified = true` (provider verified) |
+| **OAuth Login (existing user, unverified)** | Updates `email_verified = true` |
+| **OAuth Login (existing user, verified)** | No change (already verified) |
+| **Email Login (unverified user)** | Blocked - requires OAuth verification first |
+
+**Typical Flow:**
+1. User registers with email/password → `email_verified = false`
+2. User cannot login with email yet
+3. User signs in with GitHub/Google (same email) → `email_verified = true`, OAuth account linked
+4. User can now login with email/password
+
+**Implementation** (`server/src/auth/passport.ts`):
+```typescript
+// When linking OAuth account to existing user
+if (!user.email_verified) {
+  await usersRepository.update(user.id, {
+    emailVerified: true,
+  });
+  user.email_verified = true;
+}
+```
+
+This ensures OAuth providers (GitHub, Google) act as email verifiers since they have already verified the user's email.
+
+### Frontend Code Quality (v0.1.2)
+
+**CSS Architecture**:
+- `@apply` utilities in `styles/layout.css`:
+  - Icon sizes: `.icon-xs` through `.icon-xl`
+  - Button variants: `.btn-cyber`, `.btn-cyber-sm`, `.btn-cyber-md`, `.btn-cyber-lg`
+  - Border variants: `.border-cyber-xs` through `.border-cyber-hover`
+  - Animation delays: `.fade-in-delay-0` through `.fade-in-delay-4`
+
+**Custom Hooks** (`lib/hooks/`):
+- `useAuth.ts` - Authentication state, token handling, getIdToken, decodeIdToken
+- `useMediaQuery.ts` - Media queries with `useIsMobile()`, `useIsTablet()`, `useIsDesktop()`
+- `useSidebar.ts` - Sidebar state with localStorage persistence
+
+**Shared UI Components** (`components/ui/`):
+- `Button.tsx` - Cyberpunk styled (variants: default, outline, ghost; sizes: sm, md, lg)
+- `IconWrapper.tsx` - Icon container with consistent styling
+- `Card.tsx` - Card with glow effects (variants: default, interactive)
+- `StatusBadge.tsx` - Status indicator (running, idle, error, starting, stopped)
+
+**Inline Style Reduction**:
+- Before: 18 inline styles
+- After: 8 inline styles
+- Reduction: 56%
+
+### Frontend Authentication (v0.1.2)
+
+**LoginPage** (`pages/auth/LoginPage.tsx`):
+- OAuth buttons (GitHub, Google)
+- Email/password login form
+- Registration form with toggle
+- Loading states and error handling
+
+**ProtectedRoute** (`components/layout/ProtectedRoute.tsx`):
+- Redirects unauthenticated users to /login
+- Preserves intended destination
+- Loading spinner during auth check
+
+**App.tsx Routing**:
+- Protected dashboard route with ProtectedRoute wrapper
+- LoginRedirect - redirects authenticated users away from login
+
+**Header User Menu** (`components/layout/Header.tsx`):
+- Dynamic user name/avatar display
+- Dropdown menu with sign out
+- User initials fallback
+
+**Auth Hook** (`lib/hooks/useAuth.ts`):
+- user, isLoading, isAuthenticated state
+- setIdToken() - store JWT in localStorage
+- logout() - call /auth/logout, clear tokens, redirect
+- refreshUser() - refetch user data
+
 ---
 
 ## Server Architecture
