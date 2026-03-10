@@ -54,36 +54,6 @@ const agents: Agent[] = [
   },
 ];
 
-const statusConfig: Record<
-  AgentStatus,
-  { color: string; glow: string; label: string; border: string }
-> = {
-  running: {
-    color: "text-[hsl(150_70%_60%)]",
-    glow: "shadow-[hsl(150_70%_50%/0.3)]",
-    label: "Running",
-    border: "border-[hsl(150_70%_50%/0.3)]",
-  },
-  idle: {
-    color: "text-[hsl(192_100%_60%)]",
-    glow: "shadow-[hsl(192_100%_50%/0.2)]",
-    label: "Idle",
-    border: "border-[hsl(192_100%_50%/0.2)]",
-  },
-  error: {
-    color: "text-[hsl(0_100%_60%)]",
-    glow: "shadow-[hsl(0_100%_50%/0.3)]",
-    label: "Error",
-    border: "border-[hsl(0_100%_50%/0.3)]",
-  },
-  starting: {
-    color: "text-[hsl(35_100%_60%)]",
-    glow: "shadow-[hsl(35_100%_50%/0.3)]",
-    label: "Starting",
-    border: "border-[hsl(35_100%_50%/0.3)]",
-  },
-};
-
 function StatusIcon({ status }: { status: AgentStatus }) {
   switch (status) {
     case "running":
@@ -106,55 +76,33 @@ export function AgentCards() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.1, duration: 0.4, ease: "easeOut" }}
-          className="group relative overflow-hidden rounded border border-[hsl(187_100%_50%/0.15)] bg-[hsl(222_47%_10%)] p-5 transition-all duration-500 hover:border-[hsl(187_100%_50%/0.4)]"
-          style={{
-            background:
-              "linear-gradient(135deg, hsl(222 47% 12%) 0%, hsl(222 47% 8%) 100%)",
-            boxShadow: "0 4px 24px hsl(0 0% 0% / 0.4)",
-          }}
+          className="agent-card"
         >
-          <div
-            className="absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-            style={{
-              background:
-                "linear-gradient(135deg, hsl(187 100% 50% / 0.1) 0%, transparent 50%)",
-            }}
-          />
+          <div className="agent-card-glow" />
 
-          <div className="absolute top-0 left-0 h-px w-full bg-gradient-to-r from-transparent via-[hsl(187_100%_50%/0.5)] to-transparent" />
+          <div className="agent-card-border-gradient" />
 
           <div className="relative z-10">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded border border-[hsl(187_100%_50%/0.3)] bg-[hsl(187_100%_50%/0.1)]">
-                  <Bot className="h-5 w-5 text-[hsl(187_100%_70%)]" />
+                <div className="agent-card-icon">
+                  <Bot className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-display text-sm font-semibold tracking-widest uppercase text-foreground">
+                  <h3 className="agent-card-name text-foreground">
                     {agent.name}
                   </h3>
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <p className="agent-card-role">
                     {agent.description}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div
-              className={`mt-4 flex items-center gap-2 rounded border px-3 py-1.5 ${statusConfig[agent.status].border}`}
-              style={{
-                background:
-                  "linear-gradient(135deg, hsl(222 47% 14% / 0.8) 0%, hsl(222 47% 12% / 0.6) 100%)",
-                boxShadow: `0 0 10px ${statusConfig[agent.status].glow}`,
-              }}
-            >
-              <span className={statusConfig[agent.status].color}>
-                <StatusIcon status={agent.status} />
-              </span>
-              <span
-                className={`font-mono text-[10px] uppercase tracking-wider ${statusConfig[agent.status].color}`}
-              >
-                {statusConfig[agent.status].label}
+            <div className={`mt-4 agent-card-status ${agent.status}`}>
+              <StatusIcon status={agent.status} />
+              <span className="font-mono text-[10px] uppercase tracking-wider">
+                {agent.status}
               </span>
               {agent.status === "running" && (
                 <span className="relative flex h-2 w-2">

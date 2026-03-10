@@ -90,9 +90,10 @@
   overflow: hidden;
   border-radius: 0.5rem;
   border: 1px solid hsl(187 100% 50% / 0.15);
-  background: hsl(222 47% 10%);
+  background: linear-gradient(135deg, hsl(222 47% 12%) 0%, hsl(222 47% 8%) 100%);
   padding: 1.25rem;
   transition: all 0.5s;
+  box-shadow: 0 4px 24px hsl(0 0% 0% / 0.4);
 }
 
 .agent-card:hover {
@@ -122,6 +123,10 @@
   background: hsl(187 100% 50% / 0.1);
 }
 
+.agent-card-icon svg {
+  color: hsl(187 100% 70%);
+}
+
 .agent-card-name {
   font-family: 'Orbitron', sans-serif;
   font-size: 0.875rem;
@@ -136,4 +141,43 @@
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: hsl(192 100% 60%);
+}
+
+.agent-card-border-gradient {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(90deg, transparent, hsl(187 100% 50% / 0.5), transparent);
+}
+
+.agent-card-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.25rem;
+  border: 1px solid;
+  background: linear-gradient(135deg, hsl(222 47% 14% / 0.8) 0%, hsl(222 47% 12% / 0.6) 100%);
+}
+
+.agent-card-status.running {
+  border-color: hsl(150 70% 60% / 0.3);
+  box-shadow: 0 0 10px hsl(150 70% 60% / 0.3);
+}
+
+.agent-card-status.idle {
+  border-color: hsl(187 100% 50% / 0.3);
+  box-shadow: 0 0 10px hsl(187 100% 50% / 0.2);
+}
+
+.agent-card-status.running svg,
+.agent-card-status.running span {
+  color: hsl(150 70% 60%);
+}
+
+.agent-card-status.idle svg,
+.agent-card-status.idle span {
+  color: hsl(187 100% 70%);
 }
