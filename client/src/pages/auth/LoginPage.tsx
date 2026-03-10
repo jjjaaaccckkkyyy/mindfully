@@ -1,8 +1,17 @@
 import { useState } from "react";
-import { Github } from "lucide-react";
+import { Github, Mail, Lock, User, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth, getIdToken } from "../../lib/hooks/useAuth";
 
 export function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+  const { setIdToken } = useAuth();
 
   const handleGitHubLogin = () => {
     setIsLoading(true);
@@ -24,6 +33,48 @@ export function LoginPage() {
     const googleUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}`;
 
     window.location.href = googleUrl;
+  };
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError("");
+
+    const endpoint = isRegistering ? "/auth/register" : "/auth/login";
+    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
+    try {
+      const body = isRegistering
+        ? { email, password, name: name || undefined }
+        : { email, password };
+
+      const response = await fetch(`${apiUrl}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || data.error || "Authentication failed");
+      }
+
+      if (isRegistering) {
+        setError("Registration successful! Please check your email to verify your account.");
+        setIsRegistering(false);
+      } else {
+        if (data.idToken) {
+          setIdToken(data.idToken);
+        }
+        navigate("/");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -72,6 +123,87 @@ export function LoginPage() {
               />
             </svg>
             {isLoading ? "Connecting..." : "Sign in with Google"}
+          </button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-[hsl(187_100%_50%/0.2)]" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-[hsl(222_47%_6%)] px-2 text-muted-foreground">
+                {isRegistering ? "Create your account" : "Sign in with email"}
+              </span>
+            </div>
+          </div>
+
+          <form onSubmit={handleEmailAuth} className="space-y-4">
+            {isRegistering && (
+              <div className="flex w-full items-center gap-3 rounded-md border border-[hsl(187_100%_50%/0.2)] bg-[hsl(222_47%_8%)] px-3 py-0.5 focus-within:border-[hsl(187_100%_50%/0.5)] focus-within:shadow-[0_0_10px_hsl(187_100%_50%/0.2)] transition-all">
+                <User className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Name (optional)"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="flex-1 bg-transparent py-2.5 text-sm font-mono text-[hsl(192_100%_90%)] outline-none placeholder:text-[hsl(192_100%_40%)]"
+                />
+              </div>
+            )}
+
+            <div className="flex w-full items-center gap-3 rounded-md border border-[hsl(187_100%_50%/0.2)] bg-[hsl(222_47%_8%)] px-3 py-0.5 focus-within:border-[hsl(187_100%_50%/0.5)] focus-within:shadow-[0_0_10px_hsl(187_100%_50%/0.2)] transition-all">
+              <Mail className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+              <input
+                type="email"
+                placeholder="Email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="flex-1 bg-transparent py-2.5 text-sm font-mono text-[hsl(192_100%_90%)] outline-none placeholder:text-[hsl(192_100%_40%)]"
+              />
+            </div>
+
+            <div className="flex w-full items-center gap-3 rounded-md border border-[hsl(187_100%_50%/0.2)] bg-[hsl(222_47%_8%)] px-3 py-0.5 focus-within:border-[hsl(187_100%_50%/0.5)] focus-within:shadow-[0_0_10px_hsl(187_100%_50%/0.2)] transition-all">
+              <Lock className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={8}
+                className="flex-1 bg-transparent py-2.5 text-sm font-mono text-[hsl(192_100%_90%)] outline-none placeholder:text-[hsl(192_100%_40%)]"
+              />
+            </div>
+
+            {error && (
+              <p className={`text-sm ${isRegistering && error.includes("successful") ? "text-green-400" : "text-red-400"}`}>
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="auth-button w-full"
+            >
+              {isLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                isRegistering ? "Create Account" : "Sign In"
+              )}
+            </button>
+          </form>
+
+          <button
+            onClick={() => {
+              setIsRegistering(!isRegistering);
+              setError("");
+            }}
+            className="w-full text-center text-sm text-muted-foreground hover:text-[hsl(187_100%_70%)] transition-colors"
+          >
+            {isRegistering
+              ? "Already have an account? Sign in"
+              : "Don't have an account? Register"}
           </button>
         </div>
 

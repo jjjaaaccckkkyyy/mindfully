@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { Bell, Search, User, Command } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Bell, Search, User, Command, LogOut, ChevronDown } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../lib/hooks/useAuth";
 
 interface HeaderProps {
   className?: string;
@@ -7,6 +9,29 @@ interface HeaderProps {
 
 export function Header({ className }: HeaderProps) {
   const [searchFocused, setSearchFocused] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login");
+  };
+
+  const userInitials = user?.name
+    ? user.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
+    : user?.email?.slice(0, 2).toUpperCase() || "?";
 
   return (
     <header
@@ -45,13 +70,41 @@ export function Header({ className }: HeaderProps) {
           <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-gradient-to-br from-red-400 to-red-600 shadow-lg shadow-red-500/50" />
         </button>
 
-        <div className="header-user-btn flex items-center gap-2 rounded-lg p-1.5 pr-3 transition-all duration-300">
-          <div className="header-user-avatar flex h-8 w-8 items-center justify-center rounded-md">
-            <User className="h-4 w-4 text-[hsl(222_47%_6%)]" />
-          </div>
-          <span className="text-sm font-medium uppercase tracking-wider text-foreground">
-            Demo User
-          </span>
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={() => setUserMenuOpen(!userMenuOpen)}
+            className="header-user-btn flex items-center gap-2 rounded-lg p-1.5 pr-3 transition-all duration-300 hover:bg-[hsl(187_100%_50%/0.1)]"
+          >
+            <div className="header-user-avatar flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-[hsl(187_100%_50%)] to-[hsl(300_100%_60%)]">
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt={user.name || ""} className="h-full w-full rounded-md object-cover" />
+              ) : (
+                <span className="text-xs font-bold text-[hsl(222_47%_6%)]">{userInitials}</span>
+              )}
+            </div>
+            <span className="hidden md:block text-sm font-medium uppercase tracking-wider text-foreground truncate max-w-[120px]">
+              {user?.name || user?.email || "User"}
+            </span>
+            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${userMenuOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {userMenuOpen && (
+            <div className="absolute right-0 mt-2 w-56 rounded-md border border-[hsl(187_100%_50%/0.2)] bg-[hsl(222_47%_10%)] shadow-lg shadow-[hsl(187_100%_50%/0.1)]">
+              <div className="border-b border-[hsl(187_100%_50%/0.1)] p-3">
+                <p className="text-sm font-medium text-foreground truncate">{user?.name || "User"}</p>
+                <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+              </div>
+              <div className="p-1">
+                <button
+                  onClick={handleLogout}
+                  className="flex w-full items-center gap-2 rounded px-3 py-2 text-sm text-red-400 hover:bg-[hsl(187_100%_50%/0.1)] transition-colors"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sign out
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </header>
