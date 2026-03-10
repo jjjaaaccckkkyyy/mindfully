@@ -34,47 +34,38 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     localStorage.setItem("sidebarCollapsed", String(sidebarCollapsed));
   }, [sidebarCollapsed]);
 
-  // Calculate actual sidebar width for main content margin
   const getSidebarWidth = () => {
     if (isMobile) return 0;
     if (sidebarCollapsed) {
-      return sidebarHovered ? 256 : 64; // w-64 or w-16
+      return sidebarHovered ? 256 : 64;
     }
-    return 256; // w-64
+    return 256;
   };
 
   return (
-    <div
-      className="min-h-screen"
-      style={{
-        background: "hsl(222 47% 6%)",
-      }}
-    >
-      {/* Mobile menu button */}
+    <div className="layout-page">
       {isMobile && (
         <button
           onClick={() => setMobileMenuOpen(true)}
-          className="fixed bottom-4 left-4 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-[hsl(187_100%_50%/0.3)] bg-[hsl(222_47%_12%)] shadow-[0_0_20px_hsl(187_100%_50%/0.3)]"
+          className="layout-mobile-menu-btn"
         >
-          <Menu className="h-6 w-6 text-[hsl(187_100%_70%)]" />
+          <Menu className="h-6 w-6" />
         </button>
       )}
 
-      {/* Mobile overlay */}
       {isMobile && mobileMenuOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+          className="layout-mobile-overlay"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
-      {/* Sidebar - always fixed, transforms on mobile */}
       <div
-        className={`fixed left-0 top-0 z-50 h-screen transition-transform duration-300 ${
+        className={`layout-sidebar-container ${
           isMobile
             ? mobileMenuOpen
-              ? "translate-x-0"
-              : "-translate-x-full"
+              ? "open"
+              : "closed"
             : ""
         }`}
       >
@@ -87,23 +78,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         />
       </div>
 
-      {/* Main content - always has left margin */}
       <div
-        className="min-h-screen transition-all duration-300"
+        className="layout-main"
         style={{
           marginLeft: `${getSidebarWidth()}px`,
         }}
       >
-        {/* Mobile header */}
         {isMobile && (
-          <header
-            className="sticky top-0 z-30 flex h-14 items-center border-b border-[hsl(187_100%_50%/0.1)] px-4 backdrop-blur-xl"
-            style={{
-              background:
-                "linear-gradient(180deg, hsl(222 47% 10% / 0.95) 0%, hsl(222 47% 8% / 0.9) 100%)",
-              boxShadow: "0 4px 20px hsl(0 0% 0% / 0.2)",
-            }}
-          >
+          <header className="sticky top-0 z-30 flex h-14 items-center border-b border-[hsl(187_100%_50%/0.1)] px-4 backdrop-blur-xl layout-header-mobile">
             <button
               onClick={() => setMobileMenuOpen(true)}
               className="mr-3 flex h-9 w-9 items-center justify-center rounded border border-[hsl(187_100%_50%/0.2)] bg-[hsl(187_100%_50%/0.05)]"
@@ -116,16 +98,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </header>
         )}
 
-        {/* Desktop header */}
         {!isMobile && <Header />}
 
-        {/* Main content area */}
-        <main
-          className="flex-1 p-4 md:p-6 lg:p-8"
-          style={{
-            background: "hsl(222 47% 6%)",
-          }}
-        >
+        <main className="flex-1 p-4 md:p-6 lg:p-8 layout-main">
           {children}
         </main>
       </div>
