@@ -181,3 +181,133 @@
 .agent-card-status.idle span {
   color: hsl(187 100% 70%);
 }
+
+/* Activity Feed */
+.feed-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid hsl(187 100% 50% / 0.15);
+  background: linear-gradient(135deg, hsl(222 47% 12%) 0%, hsl(222 47% 8%) 100%);
+  padding: 1.5rem;
+  transition: all 0.5s;
+  box-shadow: 0 4px 24px hsl(0 0% 0% / 0.4);
+}
+
+.feed-card-glow {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.5s;
+  background: linear-gradient(135deg, hsl(187 100% 50% / 0.1) 0%, transparent 50%);
+}
+
+.feed-card:hover .feed-card-glow {
+  opacity: 1;
+}
+
+.feed-card-border {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(90deg, transparent, hsl(187 100% 50% / 0.5), transparent);
+}
+
+.feed-card-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+@media (min-width: 768px) {
+  .feed-card-title {
+    margin-bottom: 1.5rem;
+  }
+}
+
+.feed-list {
+  max-height: 16rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+@media (min-width: 768px) {
+  .feed-list {
+    max-height: 20rem;
+  }
+}
+
+.feed-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.feed-list::-webkit-scrollbar-track {
+  background: hsl(222 47% 8%);
+}
+
+.feed-list::-webkit-scrollbar-thumb {
+  background: hsl(187 100% 50% / 0.3);
+  border-radius: 2px;
+}
+
+.feed-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid transparent;
+  transition: all 0.3s;
+}
+
+.feed-item:hover {
+  border-color: hsl(187 100% 50% / 0.1);
+  background: hsl(187 100% 50% / 0.05);
+}
+
+.feed-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.25rem;
+  flex-shrink: 0;
+}
+
+.feed-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.feed-item-task {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: hsl(192 100% 98%);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.feed-item-agent {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: hsl(192 100% 60%);
+}
+
+.feed-item-time {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: hsl(192 100% 60%);
+  flex-shrink: 0;
+}

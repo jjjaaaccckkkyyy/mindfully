@@ -94,28 +94,16 @@ export function ActivityFeed() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.6, duration: 0.4, ease: "easeOut" }}
-      className="group relative overflow-hidden rounded border border-[hsl(187_100%_50%/0.15)] bg-[hsl(222_47%_10%)] p-3 md:p-6"
-      style={{
-        background:
-          "linear-gradient(135deg, hsl(222 47% 12%) 0%, hsl(222 47% 8%) 100%)",
-        boxShadow: "0 4px 24px hsl(0 0% 0% / 0.4)",
-      }}
+      className="feed-card"
     >
-      <div
-        className="absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-        style={{
-          background:
-            "linear-gradient(135deg, hsl(187 100% 50% / 0.1) 0%, transparent 50%)",
-        }}
-      />
-
-      <div className="absolute top-0 left-0 h-px w-full bg-gradient-to-r from-transparent via-[hsl(187_100%_50%/0.5)] to-transparent" />
+      <div className="feed-card-glow" />
+      <div className="feed-card-border" />
 
       <div className="relative z-10">
-        <h3 className="font-display mb-4 md:mb-6 text-lg font-semibold tracking-widest uppercase text-foreground">
+        <h3 className="feed-card-title text-foreground">
           Activity Log
         </h3>
-        <div className="space-y-1 max-h-64 md:max-h-80 overflow-y-auto pr-1 md:pr-2">
+        <div className="feed-list">
           {activities.map((activity, index) => {
             const Icon = statusConfig[activity.status].icon;
             const config = statusConfig[activity.status];
@@ -126,22 +114,20 @@ export function ActivityFeed() {
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.7 + index * 0.05, duration: 0.3 }}
-                className="group/item flex items-center gap-3 rounded border border-transparent p-2 transition-all duration-300 hover:border-[hsl(187_100%_50%/0.1)] hover:bg-[hsl(187_100%_50%/0.05)]"
+                className="feed-item"
               >
-                <div
-                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded ${config.bg} border ${config.border}`}
-                >
+                <div className={`feed-item-icon ${config.bg} border ${config.border}`}>
                   <Icon className={`h-3.5 w-3.5 ${config.color}`} />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-mono truncate text-xs uppercase tracking-wider text-foreground">
+                <div className="feed-item-content">
+                  <p className="feed-item-task">
                     {activity.task}
                   </p>
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <p className="feed-item-agent">
                     {activity.agent}
                   </p>
                 </div>
-                <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
+                <span className="feed-item-time">
                   {activity.time}
                 </span>
               </motion.div>

@@ -1,4 +1,116 @@
-/* Layout styles */
+/* ===========================================
+   TAILWIND @APPLY UTILITIES
+   =========================================== */
+
+/* Icon sizes */
+.icon-xs { @apply h-3 w-3; }
+.icon-sm { @apply h-4 w-4; }
+.icon-md { @apply h-5 w-5; }
+.icon-lg { @apply h-6 w-6; }
+.icon-xl { @apply h-8 w-8; }
+.icon-2xl { @apply h-10 w-10; }
+
+/* Button base styles */
+.btn-cyber {
+  @apply flex items-center justify-center rounded border 
+         bg-[hsl(187_100%_50%/0.05)]
+         transition-all duration-300;
+}
+
+.btn-cyber-sm {
+  @apply flex items-center justify-center rounded h-8 w-8 
+         border-[hsl(187_100%_50%/0.2)]
+         bg-[hsl(187_100%_50%/0.05)]
+         transition-all duration-300;
+}
+
+.btn-cyber-md {
+  @apply flex items-center justify-center rounded h-9 w-9 
+         border-[hsl(187_100%_50%/0.2)]
+         bg-[hsl(187_100%_50%/0.05)]
+         transition-all duration-300;
+}
+
+.btn-cyber-lg {
+  @apply flex items-center justify-center rounded h-10 w-10 
+         border-[hsl(187_100%_50%/0.3)]
+         bg-[hsl(187_100%_50%/0.05)]
+         transition-all duration-300;
+}
+
+/* Icon wrapper with border */
+.icon-wrap {
+  @apply flex items-center justify-center rounded-md 
+         border border-[hsl(187_100%_50%/0.3)] 
+         bg-[hsl(187_100%_50%/0.1)];
+}
+
+.icon-wrap-sm {
+  @apply flex items-center justify-center rounded-md h-8 w-8 
+         border border-[hsl(187_100%_50%/0.3)] 
+         bg-[hsl(187_100%_50%/0.1)];
+}
+
+.icon-wrap-md {
+  @apply flex items-center justify-center rounded-md h-10 w-10 
+         border border-[hsl(187_100%_50%/0.3)] 
+         bg-[hsl(187_100%_50%/0.1)];
+}
+
+/* Border variants */
+.border-cyber-xs { @apply border border-[hsl(187_100%_50%/0.1)]; }
+.border-cyber-sm { @apply border border-[hsl(187_100%_50%/0.15)]; }
+.border-cyber-md { @apply border border-[hsl(187_100%_50%/0.2)]; }
+.border-cyber-lg { @apply border border-[hsl(187_100%_50%/0.3)]; }
+.border-cyber-hover { @apply hover:border-[hsl(187_100%_50%/0.5)]; }
+
+/* Background variants */
+.bg-cyber-xs { @apply bg-[hsl(187_100%_50%/0.05)]; }
+.bg-cyber-sm { @apply bg-[hsl(187_100%_50%/0.1)]; }
+.bg-cyber-md { @apply bg-[hsl(187_100%_50%/0.15)]; }
+.bg-cyber-hover { @apply hover:bg-[hsl(187_100%_50%/0.15)]; }
+
+/* Text colors */
+.text-cyber { @apply text-[hsl(187_100%_70%)]; }
+.text-cyber-muted { @apply text-[hsl(192_100%_60%)]; }
+
+/* Status colors */
+.text-success { @apply text-[hsl(150_70%_60%)]; }
+.text-warning { @apply text-[hsl(45_100%_60%)]; }
+.text-danger { @apply text-[hsl(0_70%_60%)]; }
+
+/* Card base */
+.card-cyber {
+  @apply relative overflow-hidden rounded border border-[hsl(187_100%_50%/0.15)] 
+         bg-[hsl(222_47%_10%)] transition-all duration-500;
+}
+
+.card-cyber-hover:hover {
+  @apply border-[hsl(187_100%_50%/0.4)];
+}
+
+/* Rounded utilities */
+.rounded-sm { @apply rounded; }
+.rounded-md { @apply rounded-md; }
+.rounded-lg { @apply rounded-lg; }
+.rounded-full { @apply rounded-full; }
+
+/* Transition utilities */
+.transition-base {
+  @apply transition-all duration-300;
+}
+
+.transition-fast {
+  @apply transition-all duration-150;
+}
+
+.transition-slow {
+  @apply transition-all duration-500;
+}
+
+/* ===========================================
+   LAYOUT STYLES
+   =========================================== */
 .layout-page {
   min-height: 100vh;
   background: hsl(222 47% 6%);
@@ -145,6 +257,11 @@
 .fade-in-delay-2 { animation-delay: 200ms; }
 .fade-in-delay-3 { animation-delay: 300ms; }
 .fade-in-delay-4 { animation-delay: 400ms; }
+
+.fade-in-anim {
+  animation: fadeInUp 0.6s ease-out forwards;
+  opacity: 0;
+}
 
 /* Status indicator pulse */
 .status-pulse {
