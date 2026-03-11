@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Github, Mail, Lock, User, Loader2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth, getIdToken } from "../../lib/hooks/useAuth";
 
 export function LoginPage() {
@@ -174,6 +174,17 @@ export function LoginPage() {
                 className="flex-1 bg-transparent py-2.5 text-sm font-mono text-[hsl(192_100%_90%)] outline-none placeholder:text-[hsl(192_100%_40%)]"
               />
             </div>
+
+            {!isRegistering && (
+              <div className="text-right">
+                <Link
+                  to="/forgot-password"
+                  className="text-sm text-muted-foreground hover:text-[hsl(187_100%_70%)] transition-colors"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+            )}
 
             {error && (
               <p className={`text-sm ${isRegistering && error.includes("successful") ? "text-green-400" : "text-red-400"}`}>

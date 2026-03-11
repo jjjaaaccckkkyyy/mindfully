@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { DashboardLayout, ProtectedRoute } from "./components/layout";
-import { LoginPage, OAuthCallback } from "./pages/auth";
+import { LoginPage, OAuthCallback, VerifyEmailPage, ForgotPasswordPage, ResetPasswordPage } from "./pages/auth";
 import {
   AgentCards,
   ActivityChart,
@@ -60,6 +60,9 @@ export function App() {
       <Routes>
         <Route path="/login" element={<LoginRedirect />} />
         <Route path="/auth/callback/:provider" element={<OAuthCallback />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route
           path="/"
           element={
