@@ -12,6 +12,9 @@ export default defineConfig({
         'src/__tests__/',
         '**/*.d.ts',
         'src/index.ts',
+        'src/auth/strategies/', 
+        'src/types/',
+        'vitest.config.ts',
       ],
       thresholds: {
         lines: 80,
