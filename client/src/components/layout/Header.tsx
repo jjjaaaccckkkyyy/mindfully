@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Bell, Search, User, Command, LogOut, ChevronDown } from "lucide-react";
+import { Bell, Search, User, Command, LogOut, ChevronDown, Mail, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../lib/hooks/useAuth";
 
@@ -10,6 +10,8 @@ interface HeaderProps {
 export function Header({ className }: HeaderProps) {
   const [searchFocused, setSearchFocused] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -23,6 +25,30 @@ export function Header({ className }: HeaderProps) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const handleResendVerification = async () => {
+    if (!user?.email || resending) return;
+    
+    setResending(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+      const response = await fetch(`${apiUrl}/auth/resend-verification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: user.email }),
+      });
+      
+      if (response.ok) {
+        setResent(true);
+        setTimeout(() => setResent(false), 5000);
+      }
+    } catch (error) {
+      console.error("Failed to resend verification:", error);
+    } finally {
+      setResending(false);
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -93,7 +119,25 @@ export function Header({ className }: HeaderProps) {
               <div className="border-b border-[hsl(187_100%_50%/0.1)] p-3">
                 <p className="text-sm font-medium text-foreground truncate">{user?.name || "User"}</p>
                 <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                {user?.emailVerified === false && (
+                  <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-400">
+                    <AlertCircle className="h-3 w-3" />
+                    <span>Email not verified</span>
+                  </div>
+                )}
               </div>
+              {user?.emailVerified === false && (
+                <div className="border-b border-[hsl(187_100%_50%/0.1)] p-1">
+                  <button
+                    onClick={handleResendVerification}
+                    disabled={resending || resent}
+                    className="flex w-full items-center gap-2 rounded px-3 py-2 text-sm text-amber-400 hover:bg-[hsl(45_100%_50%/0.1)] transition-colors disabled:opacity-50"
+                  >
+                    <Mail className="h-4 w-4" />
+                    {resent ? "Email sent!" : resending ? "Sending..." : "Resend verification"}
+                  </button>
+                </div>
+              )}
               <div className="p-1">
                 <button
                   onClick={handleLogout}

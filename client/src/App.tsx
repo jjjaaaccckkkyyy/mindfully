@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { DashboardLayout, ProtectedRoute } from "./components/layout";
+import { DashboardLayout, ProtectedRoute,
+  VerificationBanner
+} from "./components/layout";
 import { LoginPage, OAuthCallback, VerifyEmailPage, ForgotPasswordPage, ResetPasswordPage } from "./pages/auth";
 import {
   AgentCards,
@@ -13,6 +15,8 @@ import { useEffect } from "react";
 function Dashboard() {
   return (
     <div className="space-y-8">
+      <VerificationBanner />
+      
       <div className="animate-fade-in-up fade-in-delay-0">
         <h1 className="font-display text-4xl font-semibold tracking-wider">
           <span className="text-gradient-cyber">Dashboard</span>
