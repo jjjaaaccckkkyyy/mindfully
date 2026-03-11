@@ -3,6 +3,7 @@ import { DashboardLayout, ProtectedRoute,
   VerificationBanner
 } from "./components/layout";
 import { LoginPage, OAuthCallback, VerifyEmailPage, ForgotPasswordPage, ResetPasswordPage } from "./pages/auth";
+import { SessionsPage } from "./pages/settings";
 import {
   AgentCards,
   ActivityChart,
@@ -67,6 +68,16 @@ export function App() {
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route
+          path="/settings/sessions"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <SessionsPage />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/"
           element={

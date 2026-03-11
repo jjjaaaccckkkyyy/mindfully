@@ -3,6 +3,7 @@ import type { Router as RouterType } from 'express';
 import passport from '../auth/passport';
 import { usersRepository } from '../db/repositories/users';
 import { verificationTokenRepository, passwordResetTokenRepository } from '../db/repositories/tokens';
+import { sessionsRepository } from '../db/repositories/sessions';
 import { passwordUtils } from '../auth/utils/password';
 import { tokenUtils } from '../auth/utils/tokens';
 import { sendVerificationEmail, sendPasswordResetEmail, generateIdToken } from '../auth';
@@ -236,6 +237,53 @@ router.post('/reset-password', async (req: Request, res: Response) => {
 router.get('/me', requireAuth, (req: Request, res: Response) => {
   const user = (req as any).user;
   res.json({ user: { ...formatUser(user), createdAt: user.created_at } });
+});
+
+router.get('/sessions', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const sessionId = (req as any).sessionID;
+    const sessions = await sessionsRepository.findByUserId(user.id, sessionId);
+    res.json({ sessions });
+  } catch (error) {
+    console.error('Get sessions error:', error);
+    res.status(500).json({ error: 'Failed to get sessions', message: 'An error occurred' });
+  }
+});
+
+router.delete('/sessions/:sessionId', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const sessionId = req.params.sessionId;
+    const currentSessionId = (req as any).sessionID;
+
+    if (sessionId === currentSessionId) {
+      return res.status(400).json({ error: 'Cannot delete current session', message: 'Use logout to end current session' });
+    }
+
+    const deleted = await sessionsRepository.deleteBySessionId(sessionId as string);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Session not found', message: 'Session does not exist or already expired' });
+    }
+
+    res.json({ message: 'Session terminated successfully' });
+  } catch (error) {
+    console.error('Delete session error:', error);
+    res.status(500).json({ error: 'Failed to delete session', message: 'An error occurred' });
+  }
+});
+
+router.delete('/sessions', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const currentSessionId = (req as any).sessionID;
+    
+    const count = await sessionsRepository.deleteAllExcept(user.id, currentSessionId);
+    res.json({ message: `Terminated ${count} session(s)`, count });
+  } catch (error) {
+    console.error('Delete all sessions error:', error);
+    res.status(500).json({ error: 'Failed to delete sessions', message: 'An error occurred' });
+  }
 });
 
 export default router;
