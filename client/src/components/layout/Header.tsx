@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { Bell, Search, User, Command, LogOut, ChevronDown, Mail, AlertCircle } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Bell, Search, User, Command, LogOut, ChevronDown, Mail, AlertCircle, Laptop } from "lucide-react";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../lib/hooks/useAuth";
 
 interface HeaderProps {
@@ -138,6 +138,16 @@ export function Header({ className }: HeaderProps) {
                   </button>
                 </div>
               )}
+              <div className="border-b border-[hsl(187_100%_50%/0.1)] p-1">
+                <Link
+                  to="/settings/sessions"
+                  onClick={() => setUserMenuOpen(false)}
+                  className="flex w-full items-center gap-2 rounded px-3 py-2 text-sm text-muted-foreground hover:bg-[hsl(187_100%_50%/0.1)] hover:text-foreground transition-colors"
+                >
+                  <Laptop className="h-4 w-4" />
+                  Manage sessions
+                </Link>
+              </div>
               <div className="p-1">
                 <button
                   onClick={handleLogout}
