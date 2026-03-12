@@ -70,7 +70,14 @@ function getDefaultProviders(): string[] {
 
 export function getProviderModels(provider: string): string[] {
   const models: Record<string, string[]> = {
-    'opencode-zen': ['opencode/gpt-5.1-codex', 'opencode/claude-opus-4-6', 'opencode/gpt-4.5'],
+    'opencode-zen': [
+      'glm-5', 'glm-4.7', 'glm-4.6',
+      'gpt-5.1-codex', 'gpt-5.1-codex-mini', 'gpt-5.1-codex-max',
+      'gpt-5.3-codex', 'gpt-5.4-pro',
+      'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-3-5-haiku',
+      'gemini-3-pro', 'gemini-3-flash',
+      'kimi-k2', 'minimax-m2.5',
+    ],
     openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
     anthropic: ['claude-opus-4-5-20241022', 'claude-sonnet-4-20241022', 'claude-haiku-3-20240307'],
     ollama: ['llama3.2', 'llama3.1', 'codellama', 'mistral'],
@@ -84,4 +91,4 @@ export function getAllProviderNames(): string[] {
 }
 
 export { ProviderChain } from './chain.js';
-export type { LLMProvider, Message, AIMessage, CostInfo, FallbackConfig } from './base.js';
+export type { LLMProvider, Message, AIMessage, CostInfo, FallbackConfig, ToolSchema } from './base.js';

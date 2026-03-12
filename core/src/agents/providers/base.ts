@@ -42,11 +42,17 @@ export interface CostInfo {
   currency: string;
 }
 
+export interface ToolSchema {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>; // JSON Schema object
+}
+
 export interface LLMProvider {
   name: string;
   config: LLMConfig;
-  invoke(messages: Message[]): Promise<AIMessage>;
-  stream(messages: Message[]): AsyncGenerator<AIMessage>;
+  invoke(messages: Message[], tools?: ToolSchema[]): Promise<AIMessage>;
+  stream(messages: Message[], tools?: ToolSchema[]): AsyncGenerator<AIMessage>;
   getCost(usage: { inputTokens: number; outputTokens: number }): CostInfo;
 }
 
@@ -64,9 +70,21 @@ export const DEFAULT_FALLBACK_CONFIG: FallbackConfig = {
 
 export const PROVIDER_MODELS: Record<string, string[]> = {
   'opencode-zen': [
-    'opencode/gpt-5.1-codex',
-    'opencode/claude-opus-4-6',
-    'opencode/gpt-4.5',
+    'glm-5',
+    'glm-4.7',
+    'glm-4.6',
+    'gpt-5.1-codex',
+    'gpt-5.1-codex-mini',
+    'gpt-5.1-codex-max',
+    'gpt-5.3-codex',
+    'gpt-5.4-pro',
+    'claude-opus-4-6',
+    'claude-sonnet-4-6',
+    'claude-3-5-haiku',
+    'gemini-3-pro',
+    'gemini-3-flash',
+    'kimi-k2',
+    'minimax-m2.5',
   ],
   openai: [
     'gpt-4o',
@@ -93,4 +111,4 @@ export const PROVIDER_MODELS: Record<string, string[]> = {
 };
 
 export const DEFAULT_PROVIDER = 'opencode-zen';
-export const DEFAULT_MODEL = 'opencode/gpt-5.1-codex';
+export const DEFAULT_MODEL = 'gpt-5.1-codex';

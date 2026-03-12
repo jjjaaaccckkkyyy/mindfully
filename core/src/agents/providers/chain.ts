@@ -1,4 +1,4 @@
-import type { LLMProvider, Message, AIMessage, CostInfo, FallbackConfig } from './base.js';
+import type { LLMProvider, Message, AIMessage, CostInfo, FallbackConfig, ToolSchema } from './base.js';
 import { DEFAULT_FALLBACK_CONFIG } from './base.js';
 
 export class ProviderChain {
@@ -14,16 +14,16 @@ export class ProviderChain {
     this.config = { ...DEFAULT_FALLBACK_CONFIG, ...config };
   }
 
-  async invoke(messages: Message[]): Promise<AIMessage> {
+  async invoke(messages: Message[], tools: ToolSchema[] = []): Promise<AIMessage> {
     let lastError: Error | null = null;
 
     for (let providerIndex = 0; providerIndex < this.providers.length; providerIndex++) {
       const provider = this.providers[providerIndex];
-      
+
       for (let retry = 0; retry < this.config.retryCount; retry++) {
         try {
-          const response = await this.invokeWithTimeout(provider, messages);
-          
+          const response = await this.invokeWithTimeout(provider, messages, tools);
+
           if (response.usage) {
             const costInfo = provider.getCost({
               inputTokens: response.usage.inputTokens,
@@ -31,12 +31,15 @@ export class ProviderChain {
             });
             this.costHistory.push(costInfo);
           }
-          
+
           return response;
         } catch (error) {
           lastError = error instanceof Error ? error : new Error(String(error));
-          console.warn(`Provider ${provider.name} failed (attempt ${retry + 1}/${this.config.retryCount}):`, lastError.message);
-          
+          console.warn(
+            `Provider ${provider.name} failed (attempt ${retry + 1}/${this.config.retryCount}):`,
+            lastError.message,
+          );
+
           if (this.config.delayMs && retry < this.config.retryCount - 1) {
             await this.delay(this.config.delayMs);
           }
@@ -51,36 +54,45 @@ export class ProviderChain {
     throw new Error(`All providers failed. Last error: ${lastError?.message || 'Unknown error'}`);
   }
 
-  async *stream(messages: Message[]): AsyncGenerator<AIMessage> {
+  async *stream(messages: Message[], tools: ToolSchema[] = []): AsyncGenerator<AIMessage> {
     let lastError: Error | null = null;
 
     for (let providerIndex = 0; providerIndex < this.providers.length; providerIndex++) {
       const provider = this.providers[providerIndex];
-      
+
       try {
-        for await (const chunk of provider.stream(messages)) {
+        for await (const chunk of provider.stream(messages, tools)) {
           yield chunk;
         }
         return;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         console.warn(`Provider ${provider.name} stream failed:`, lastError.message);
-        
+
         if (this.config.delayMs && providerIndex < this.providers.length - 1) {
           await this.delay(this.config.delayMs);
         }
       }
     }
 
-    throw new Error(`All providers failed to stream. Last error: ${lastError?.message || 'Unknown error'}`);
+    throw new Error(
+      `All providers failed to stream. Last error: ${lastError?.message || 'Unknown error'}`,
+    );
   }
 
-  private async invokeWithTimeout(provider: LLMProvider, messages: Message[]): Promise<AIMessage> {
+  private async invokeWithTimeout(
+    provider: LLMProvider,
+    messages: Message[],
+    tools: ToolSchema[],
+  ): Promise<AIMessage> {
     const timeoutPromise = new Promise<AIMessage>((_, reject) => {
-      setTimeout(() => reject(new Error(`Provider ${provider.name} timed out`)), this.config.timeoutMs);
+      setTimeout(
+        () => reject(new Error(`Provider ${provider.name} timed out`)),
+        this.config.timeoutMs,
+      );
     });
 
-    const invokePromise = provider.invoke(messages);
+    const invokePromise = provider.invoke(messages, tools);
 
     return Promise.race([invokePromise, timeoutPromise]);
   }
