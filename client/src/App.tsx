@@ -4,14 +4,14 @@ import { DashboardLayout, ProtectedRoute,
 } from "./components/layout";
 import { LoginPage, OAuthCallback, VerifyEmailPage, ForgotPasswordPage, ResetPasswordPage } from "./pages/auth";
 import { SessionsPage } from "./pages/settings";
+import { AgentsPage, AgentCreatePage, AgentRunPage, AgentEditPage } from "./pages/agents";
 import {
   AgentCards,
   ActivityChart,
   AgentTree,
   ActivityFeed,
 } from "./components/dashboard";
-import { useAuth } from "./lib/hooks/useAuth";
-import { useEffect } from "react";
+import { useAuth } from "./lib/hooks";
 
 function Dashboard() {
   return (
@@ -74,6 +74,46 @@ export function App() {
             <ProtectedRoute>
               <DashboardLayout>
                 <SessionsPage />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/agents"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <AgentsPage />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/agents/new"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <AgentCreatePage />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/agents/:id/run"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <AgentRunPage />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/agents/:id"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <AgentEditPage />
               </DashboardLayout>
             </ProtectedRoute>
           }

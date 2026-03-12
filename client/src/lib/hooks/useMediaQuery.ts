@@ -15,16 +15,12 @@ export function useMediaQuery(query: string): boolean {
       setMatches(e.matches);
     };
 
-    if (mediaQuery.matches !== matches) {
-      setMatches(mediaQuery.matches);
-    }
-
     mediaQuery.addEventListener("change", handleChange);
     
     return () => {
       mediaQuery.removeEventListener("change", handleChange);
     };
-  }, [query, matches]);
+  }, [query]);
 
   return matches;
 }

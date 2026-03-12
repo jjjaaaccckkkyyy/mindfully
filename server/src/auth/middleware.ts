@@ -33,7 +33,7 @@ export function requireEmailVerified(req: Request, res: Response, next: NextFunc
   next();
 }
 
-export function requireRole(role: string) {
+export function requireRole(_role: string) {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!(req as any).isAuthenticated || !(req as any).isAuthenticated()) {
       return res.status(401).json({

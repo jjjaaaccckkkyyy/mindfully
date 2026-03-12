@@ -116,7 +116,11 @@ router.post('/login', (req: Request, res: Response, next) => {
 
     req.logIn(user, (err) => {
       if (err) return res.status(500).json({ error: 'Login failed', message: 'Failed to establish session' });
-      res.json({ message: 'Login successful', user: formatUser(user) });
+      res.json({ 
+        message: 'Login successful', 
+        user: formatUser(user),
+        idToken: generateIdToken(user, 'local'),
+      });
     });
   })(req, res, next);
 });
@@ -253,7 +257,6 @@ router.get('/sessions', requireAuth, async (req: Request, res: Response) => {
 
 router.delete('/sessions/:sessionId', requireAuth, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
     const sessionId = req.params.sessionId;
     const currentSessionId = (req as any).sessionID;
 

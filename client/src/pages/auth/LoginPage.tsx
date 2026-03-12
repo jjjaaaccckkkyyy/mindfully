@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Github, Mail, Lock, User, Loader2 } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
-import { useAuth, getIdToken } from "../../lib/hooks/useAuth";
+import { useAuth } from "../../lib/hooks/useAuth";
+import { PasswordStrengthIndicator } from "../../components/auth/PasswordStrengthIndicator";
 
 export function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -174,6 +175,10 @@ export function LoginPage() {
                 className="flex-1 bg-transparent py-2.5 text-sm font-mono text-[hsl(192_100%_90%)] outline-none placeholder:text-[hsl(192_100%_40%)]"
               />
             </div>
+
+            {isRegistering && password && (
+              <PasswordStrengthIndicator password={password} />
+            )}
 
             {!isRegistering && (
               <div className="text-right">

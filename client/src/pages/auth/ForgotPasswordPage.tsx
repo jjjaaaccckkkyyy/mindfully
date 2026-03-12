@@ -51,7 +51,7 @@ export function ForgotPasswordPage() {
           {status === "form" && (
             <>
               <p className="text-sm text-muted-foreground text-center font-mono">
-                Enter your email address and we'll send you a link to reset your password.
+                Enter your email address and we&apos;ll send you a link to reset your password.
               </p>
 
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -89,7 +89,7 @@ export function ForgotPasswordPage() {
               </div>
               <p className="text-sm text-green-400 font-mono">{message}</p>
               <p className="text-xs text-muted-foreground font-mono">
-                Didn't receive the email? Check your spam folder or{" "}
+                Didn&apos;t receive the email? Check your spam folder or{" "}
                 <button
                   onClick={() => setStatus("form")}
                   className="text-[hsl(187_100%_70%)] hover:underline"

@@ -38,7 +38,7 @@ describe('Database', () => {
       const { db } = await import('../../db/index');
       mockPool.query.mockResolvedValue({ rows: [{ id: 1 }], rowCount: 1 });
 
-      const result = await db.query('SELECT * FROM users WHERE id = $1', ['1']);
+      const _result = await db.query('SELECT * FROM users WHERE id = $1', ['1']);
 
       expect(mockPool.query).toHaveBeenCalledWith('SELECT * FROM users WHERE id = $1', ['1']);
     });

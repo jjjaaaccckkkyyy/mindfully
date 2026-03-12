@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 
 interface AuthUser {
   id: string;
@@ -8,7 +8,7 @@ interface AuthUser {
   emailVerified: boolean;
 }
 
-interface UseAuthReturn {
+interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
@@ -17,9 +17,11 @@ interface UseAuthReturn {
   refreshUser: () => Promise<void>;
 }
 
+const AuthContext = createContext<AuthContextValue | null>(null);
+
 const ID_TOKEN_KEY = "id_token";
 
-export function useAuth(): UseAuthReturn {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -76,14 +78,28 @@ export function useAuth(): UseAuthReturn {
     await fetchUser();
   }, [fetchUser]);
 
-  return {
-    user,
-    isLoading,
-    isAuthenticated: !!user,
-    setIdToken,
-    logout,
-    refreshUser,
-  };
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        isAuthenticated: !!user,
+        setIdToken,
+        logout,
+        refreshUser,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth(): AuthContextValue {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
 }
 
 export function getIdToken(): string | null {

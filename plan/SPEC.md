@@ -9,6 +9,8 @@
 | v0.1.2 | ✅ Built | Auth (OAuth 2.0 + JWT) |
 | v0.1.3 | 🔜 Planned | Agent framework, database |
 
+See [v0.1.3-implementation.md](./v0.1.3-implementation.md) for detailed implementation plan.
+
 ---
 
 ## Current Stack (v0.1.0 - Built)
@@ -194,6 +196,12 @@ This ensures OAuth providers (GitHub, Google) act as email verifiers since they 
 - setIdToken() - store JWT in localStorage
 - logout() - call /auth/logout, clear tokens, redirect
 - refreshUser() - refetch user data
+
+---
+
+## OpenClaw Research
+
+See [claw-research.md](./claw-research.md) for detailed analysis of OpenClaw's architecture.
 
 ---
 

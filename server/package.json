@@ -12,7 +12,7 @@
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "db:init": "psql $DATABASE_URL -f src/db/schema.sql"
+    "db:init": "tsx src/db/migrate.ts"
   },
   "dependencies": {
     "@trpc/server": "^11.0.0",
@@ -34,6 +34,7 @@
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/bcrypt": "^6.0.0",
     "@types/connect-pg-simple": "^7.0.3",
     "@types/cors": "^2.8.19",
@@ -49,10 +50,12 @@
     "@types/supertest": "^7.2.0",
     "@vitest/coverage-v8": "^2.1.9",
     "eslint": "^9.0.0",
+    "globals": "^17.4.0",
     "prettier": "^3.4.0",
     "supertest": "^7.2.2",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
+    "typescript-eslint": "^8.56.1",
     "vitest": "^2.0.0"
   }
 }

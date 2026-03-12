@@ -81,7 +81,7 @@ describe('id-token', () => {
         email_verified: false,
       };
 
-      const now = Math.floor(Date.now() / 1000);
+      const _now = Math.floor(Date.now() / 1000);
       const token = generateIdToken(user, 'github');
       const decoded = jwt.decode(token) as any;
 

@@ -68,7 +68,7 @@ export function verifyIdToken(token: string): IdTokenPayload | null {
       emailVerified: decoded.emailVerified,
       provider: decoded.provider,
     };
-  } catch (error) {
+  } catch {
     return null;
   }
 }

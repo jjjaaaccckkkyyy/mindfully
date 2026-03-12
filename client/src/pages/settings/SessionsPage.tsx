@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Monitor, Smartphone, Laptop, Tablet, Clock, MoreVertical, Trash2, LogOut, AlertCircle } from "lucide-react";
+import { Monitor, Smartphone, Laptop, Tablet, Trash2, LogOut, AlertCircle } from "lucide-react";
 import { useAuth } from "../../lib/hooks/useAuth";
 
 import { useNavigate } from "react-router-dom";
@@ -14,7 +14,7 @@ interface Session {
 }
 
 export function SessionsPage() {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -84,11 +84,10 @@ export function SessionsPage() {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Failed to terminate sessions");
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to terminate sessions");
       }
 
-      const data = await response.json();
       setSessions(sessions.filter(s => s.isCurrent));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to terminate sessions");
