@@ -286,7 +286,7 @@ function toToolSchemas(tools: Tool[]): ToolSchema[] {
         const required: string[] = [];
         for (const [key, val] of Object.entries(shape)) {
           props[key] = zodTypeToJsonSchema(val);
-          if (!(val instanceof z.ZodOptional)) required.push(key);
+          if (!isOptionalOrDefault(val)) required.push(key);
         }
         parameters = {
           type: 'object',
@@ -303,11 +303,30 @@ function toToolSchemas(tools: Tool[]): ToolSchema[] {
   });
 }
 
+/** Returns true if the field is optional or has a default (i.e. not required). */
+function isOptionalOrDefault(schema: z.ZodTypeAny): boolean {
+  return schema instanceof z.ZodOptional || schema instanceof z.ZodDefault;
+}
+
 function zodTypeToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
+  // Unwrap Optional and Default wrappers transparently
   if (schema instanceof z.ZodOptional) return zodTypeToJsonSchema(schema.unwrap());
-  if (schema instanceof z.ZodString) return { type: 'string' };
-  if (schema instanceof z.ZodNumber) return { type: 'number' };
-  if (schema instanceof z.ZodBoolean) return { type: 'boolean' };
+  if (schema instanceof z.ZodDefault) return zodTypeToJsonSchema(schema._def.innerType);
+  if (schema instanceof z.ZodString) {
+    const result: Record<string, unknown> = { type: 'string' };
+    if (schema.description) result.description = schema.description;
+    return result;
+  }
+  if (schema instanceof z.ZodNumber) {
+    const result: Record<string, unknown> = { type: 'number' };
+    if (schema.description) result.description = schema.description;
+    return result;
+  }
+  if (schema instanceof z.ZodBoolean) {
+    const result: Record<string, unknown> = { type: 'boolean' };
+    if (schema.description) result.description = schema.description;
+    return result;
+  }
   if (schema instanceof z.ZodArray) return { type: 'array', items: zodTypeToJsonSchema(schema.element) };
   if (schema instanceof z.ZodObject) {
     const shape = schema.shape as Record<string, z.ZodTypeAny>;
