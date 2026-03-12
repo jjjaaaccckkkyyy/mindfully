@@ -6,6 +6,7 @@ import { createExpressMiddleware } from '@trpc/server/adapters/express';
 import session from 'express-session';
 import { appRouter } from './router';
 import authRouter from './router/auth';
+import agentStreamRouter from './sse/agent-stream';
 import { passport, getSessionConfig } from './auth';
 import { db } from './db';
 import { initEmailService } from './email';
@@ -53,6 +54,7 @@ app.use(
 );
 
 app.use('/auth', authRouter);
+app.use('/api', agentStreamRouter);
 
 app.get('/health', async (_req, res) => {
   try {

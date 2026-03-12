@@ -27,6 +27,15 @@ export interface MemorySearchOptions {
 export { MarkdownStore } from './markdown.js';
 export { QdrantClient, type QdrantConfig } from './qdrant.js';
 export { MemoryService, type MemoryServiceConfig } from './service.js';
+export { createEmbeddingProvider, type EmbeddingProvider } from './embeddings.js';
+export {
+  ContextManager,
+  type ContextManagerConfig,
+  type ContextMessage,
+  type StoredMessage,
+  type SessionRecord,
+  type SessionSummaryUpdate,
+} from './context-manager.js';
 
 export class InMemoryStore {
   private store: MemoryEntry[] = [];

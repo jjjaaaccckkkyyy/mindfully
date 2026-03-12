@@ -106,6 +106,10 @@ export class ExecutionsRepository {
     return rowCount || 0;
   }
 
+  async linkSession(id: string, sessionId: string): Promise<void> {
+    await db.query('UPDATE agent_executions SET session_id = $1 WHERE id = $2', [sessionId, id]);
+  }
+
   private mapRow(row: Record<string, unknown>): Execution {
     return {
       id: row.id as string,

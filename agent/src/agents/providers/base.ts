@@ -63,9 +63,9 @@ export interface FallbackConfig {
 }
 
 export const DEFAULT_FALLBACK_CONFIG: FallbackConfig = {
-  retryCount: 3,
+  retryCount: 2,
   timeoutMs: 30000,
-  delayMs: 1000,
+  delayMs: 500,
 };
 
 export const PROVIDER_MODELS: Record<string, string[]> = {

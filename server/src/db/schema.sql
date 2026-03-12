@@ -129,3 +129,45 @@ CREATE INDEX IF NOT EXISTS idx_memories_user_id ON memories(user_id);
 CREATE INDEX IF NOT EXISTS idx_memories_agent_id ON memories(agent_id);
 -- Note: vector index requires pgvector extension
 -- CREATE INDEX IF NOT EXISTS idx_memories_embedding ON memories USING ivfflat (embedding vector_cosine_ops);
+
+-- ============================================================================
+-- Sessions & Context Window (v0.1.4)
+-- ============================================================================
+
+-- Agent sessions table (multi-turn chat)
+CREATE TABLE IF NOT EXISTS agent_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  agent_id UUID REFERENCES agents(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT,
+  status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'archived')),
+  summary TEXT,
+  summary_up_to INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Session messages table (individual turns)
+CREATE TABLE IF NOT EXISTS session_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID REFERENCES agent_sessions(id) ON DELETE CASCADE,
+  sequence_number INTEGER NOT NULL,
+  role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant', 'tool')),
+  content TEXT NOT NULL DEFAULT '',
+  tool_calls JSONB,
+  tool_call_id TEXT,
+  tool_name TEXT,
+  token_count INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Add session_id FK to agent_executions
+ALTER TABLE agent_executions
+  ADD COLUMN IF NOT EXISTS session_id UUID REFERENCES agent_sessions(id) ON DELETE SET NULL;
+
+-- Session indexes
+CREATE INDEX IF NOT EXISTS idx_agent_sessions_agent_id ON agent_sessions(agent_id);
+CREATE INDEX IF NOT EXISTS idx_agent_sessions_user_id ON agent_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_agent_sessions_status ON agent_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_session_messages_session_seq ON session_messages(session_id, sequence_number);
+CREATE INDEX IF NOT EXISTS idx_agent_executions_session_id ON agent_executions(session_id);

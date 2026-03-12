@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { router, publicProcedure } from '../trpc';
 import { agentRouter, executionRouter, memoryRouter, toolRouter } from './agent';
+import { sessionRouter } from './session';
 
 export const appRouter = router({
   hello: publicProcedure
@@ -12,6 +13,7 @@ export const appRouter = router({
   execution: executionRouter,
   memory: memoryRouter,
   tool: toolRouter,
+  session: sessionRouter,
 });
 
 export type AppRouter = typeof appRouter;

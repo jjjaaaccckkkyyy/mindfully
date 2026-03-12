@@ -3,7 +3,7 @@ import { AgentRunner } from '../agents/runner.js';
 import { ProviderChain } from '../agents/providers/chain.js';
 import type { LLMProvider, Message, AIMessage, CostInfo, LLMConfig } from '../agents/providers/base.js';
 import type { Tool } from 'core';
-import type { ToolExecutor } from '../agents/runner.js';
+import type { ToolExecutor, StreamEvent } from '../agents/runner.js';
 
 // ---------------------------------------------------------------------------
 // Mock LLMProvider
@@ -79,8 +79,17 @@ function makeTool(name: string, result: unknown): Tool {
 const noTools: Tool[] = [];
 const noopExecutor: ToolExecutor = async () => ({ result: null });
 
+// Collect all stream events into an array
+async function collectStream(runner: AgentRunner, options: Parameters<AgentRunner['stream']>[0]): Promise<StreamEvent[]> {
+  const events: StreamEvent[] = [];
+  for await (const event of runner.stream(options)) {
+    events.push(event);
+  }
+  return events;
+}
+
 // ---------------------------------------------------------------------------
-// Tests
+// run() tests
 // ---------------------------------------------------------------------------
 
 describe('AgentRunner integration', () => {
@@ -233,48 +242,121 @@ describe('AgentRunner integration', () => {
     });
   });
 
-  // 6. stream() method
-  describe('stream() — yields states progressively', () => {
-    it('yields initial state first, then state after each LLM step', async () => {
+  // ---------------------------------------------------------------------------
+  // stream() tests — new token-level StreamEvent API
+  // ---------------------------------------------------------------------------
+
+  describe('stream() — token-level StreamEvent API', () => {
+    it('yields token event then done event for simple text reply', async () => {
       const runner = makeRunner([{ content: 'Streamed reply' }]);
 
-      const states = [];
-      for await (const state of runner.stream({
+      const events = await collectStream(runner, {
         input: 'Stream this',
         tools: noTools,
         toolExecutor: noopExecutor,
-      })) {
-        states.push({
-          messageCount: state.messages.length,
-          lastRole: state.messages[state.messages.length - 1]?.role,
-        });
-      }
+      });
 
-      // First yield: only user message
-      expect(states[0]).toMatchObject({ messageCount: 1, lastRole: 'user' });
+      const tokenEvents = events.filter((e) => e.type === 'token');
+      const doneEvents = events.filter((e) => e.type === 'done');
 
-      // Final yield: user + assistant
-      const last = states[states.length - 1];
-      expect(last.messageCount).toBe(2);
-      expect(last.lastRole).toBe('assistant');
+      expect(tokenEvents.length).toBeGreaterThan(0);
+      expect(tokenEvents[0]).toMatchObject({ type: 'token', content: 'Streamed reply' });
+      expect(doneEvents).toHaveLength(1);
+      expect(doneEvents[0].type).toBe('done');
     });
 
-    it('yields error state when provider fails', async () => {
-      // Give an empty queue so MockProvider throws on first invoke
+    it('done event carries final messages array', async () => {
+      const runner = makeRunner([{ content: 'Final answer' }]);
+
+      const events = await collectStream(runner, {
+        input: 'Answer me',
+        tools: noTools,
+        toolExecutor: noopExecutor,
+      });
+
+      const done = events.find((e) => e.type === 'done');
+      expect(done).toBeDefined();
+      if (done?.type === 'done') {
+        const roles = done.messages.map((m) => m.role);
+        expect(roles).toContain('user');
+        expect(roles).toContain('assistant');
+      }
+    });
+
+    it('yields tool_start and tool_result events around tool execution', async () => {
+      const toolCallResponse: AIMessage = {
+        content: '',
+        tool_calls: [{ name: 'ping', args: JSON.stringify({}), id: 'tc-1' }],
+      };
+      const finalResponse: AIMessage = { content: 'Pong done.' };
+
+      const runner = makeRunner([toolCallResponse, finalResponse]);
+      const pingTool = makeTool('ping', 'pong');
+      const executor: ToolExecutor = async (toolName) => {
+        if (toolName === 'ping') return { result: 'pong' };
+        return { result: null };
+      };
+
+      const events = await collectStream(runner, {
+        input: 'Ping',
+        tools: [pingTool],
+        toolExecutor: executor,
+      });
+
+      const toolStart = events.find((e) => e.type === 'tool_start');
+      const toolResult = events.find((e) => e.type === 'tool_result');
+
+      expect(toolStart).toBeDefined();
+      if (toolStart?.type === 'tool_start') {
+        expect(toolStart.name).toBe('ping');
+      }
+
+      expect(toolResult).toBeDefined();
+      if (toolResult?.type === 'tool_result') {
+        expect(toolResult.name).toBe('ping');
+        expect(toolResult.result).toBe('pong');
+        expect(toolResult.error).toBeUndefined();
+      }
+    });
+
+    it('yields error event when provider fails', async () => {
+      // Empty queue — MockProvider throws on first stream() call
       const runner = makeRunner([]);
 
-      const states = [];
-      for await (const state of runner.stream({
+      const events = await collectStream(runner, {
         input: 'Fail me',
         tools: noTools,
         toolExecutor: noopExecutor,
-      })) {
-        states.push(state);
-      }
+      });
 
-      const errorState = states.find((s) => s.error);
-      expect(errorState).toBeDefined();
-      expect(errorState?.error).toContain('no more responses');
+      const errorEvent = events.find((e) => e.type === 'error');
+      expect(errorEvent).toBeDefined();
+      if (errorEvent?.type === 'error') {
+        expect(errorEvent.message).toContain('no more responses');
+      }
+    });
+
+    it('supports history option — does not prepend extra user message', async () => {
+      const runner = makeRunner([{ content: 'History reply' }]);
+
+      const events = await collectStream(runner, {
+        input: 'ignored',
+        tools: noTools,
+        toolExecutor: noopExecutor,
+        history: [
+          { role: 'user', content: 'Previous question', },
+          { role: 'assistant', content: 'Previous answer', },
+          { role: 'user', content: 'New question', },
+        ],
+      });
+
+      const done = events.find((e) => e.type === 'done');
+      expect(done).toBeDefined();
+      if (done?.type === 'done') {
+        // History had 3 messages + 1 assistant response = 4
+        expect(done.messages).toHaveLength(4);
+        expect(done.messages[0]).toMatchObject({ role: 'user', content: 'Previous question' });
+      }
     });
   });
 });

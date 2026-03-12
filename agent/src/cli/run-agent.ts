@@ -96,6 +96,10 @@ function printSeparator(): void {
   println('─'.repeat(60));
 }
 
+function truncate(s: string, maxLen: number): string {
+  return s.length <= maxLen ? s : s.slice(0, maxLen) + '…';
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -155,40 +159,74 @@ async function main(): Promise<void> {
   printSeparator();
   println();
 
-  // Stream responses
-  let prevMessageCount = 1; // start after initial user message
-  let hadError = false;
+  // Build message history with a system prompt so the model knows it has tools
+  const toolList = selectedTools.map((t) => `- ${t.name}: ${t.description}`).join('\n');
+  const hasWebsearch = selectedTools.some((t) => t.name === 'websearch');
+  const history = [
+    {
+      role: 'system' as const,
+      content: [
+        'You are a helpful AI assistant with access to the following tools:',
+        toolList,
+        '',
+        'Rules:',
+        '- ALWAYS use tools to gather information before answering. Do not rely on your training data.',
+        hasWebsearch
+          ? '- For any factual, research, or knowledge question, you MUST use the websearch tool first.'
+          : '',
+        '- For file or code questions, use the read/bash tools to inspect the actual files.',
+        '- Only answer after you have used the relevant tools.',
+        `Working directory: ${cwd}`,
+      ].filter(Boolean).join('\n'),
+    },
+    { role: 'user' as const, content: prompt },
+  ];
 
-  for await (const state of runner.stream({
+  // Stream responses — new token-level StreamEvent API
+  let inlineTokensActive = false;
+
+  for await (const event of runner.stream({
     input: prompt,
     tools: selectedTools,
     toolExecutor,
+    history,
   })) {
-    if (state.error && !hadError) {
-      hadError = true;
-      println();
-      println(`[error] ${state.error}`);
-      break;
-    }
+    switch (event.type) {
+      case 'token':
+        // Tokens are written inline to stdout — no logger formatting
+        inlineTokensActive = true;
+        print(event.content);
+        break;
 
-    // Print any new messages since last yield
-    const newMessages = state.messages.slice(prevMessageCount);
-    prevMessageCount = state.messages.length;
+      case 'tool_start':
+        // Ensure the inline token stream ends on its own line before the log
+        if (inlineTokensActive) { println(); inlineTokensActive = false; }
+        logger.info(`tool_start: ${event.name}`, { args: event.args });
+        break;
 
-    for (const msg of newMessages) {
-      if (msg.role === 'assistant') {
-        if (msg.content) {
-          print(msg.content);
+      case 'tool_result':
+        if (event.error) {
+          logger.warn(`tool_result: ${event.name}`, { error: event.error });
+        } else {
+          const preview = truncate(JSON.stringify(event.result), 200);
+          logger.info(`tool_result: ${event.name}`, { result: preview });
         }
-        if (msg.tool_calls && msg.tool_calls.length > 0) {
-          for (const call of msg.tool_calls) {
-            println();
-            println(`[tool-call] ${call.name}(${JSON.stringify(call.args)})`);
-          }
-        }
-      } else if (msg.role === 'tool') {
-        println(`[tool-result:${msg.toolName}] ${msg.content}`);
+        break;
+
+      case 'done': {
+        if (inlineTokensActive) { println(); inlineTokensActive = false; }
+        const cost = event.cost;
+        logger.debug('done', {
+          messages: event.messages.length,
+          ...(cost ? { totalCost: cost.totalCost, model: cost.model } : {}),
+        });
+        break;
       }
+
+      case 'error':
+        if (inlineTokensActive) { println(); inlineTokensActive = false; }
+        logger.error(`stream error: ${event.message}`);
+        break;
     }
   }
 

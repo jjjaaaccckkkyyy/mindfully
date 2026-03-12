@@ -18,7 +18,9 @@
     "types": ["node"],
     "paths": {
       "core": ["../core/src/index.ts"],
-      "core/*": ["../core/src/*"]
+      "core/*": ["../core/src/*"],
+      "agent": ["../agent/src/index.ts"],
+      "agent/*": ["../agent/src/*"]
     }
   },
   "include": ["src/**/*"],

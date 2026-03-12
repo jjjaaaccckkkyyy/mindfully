@@ -53,6 +53,10 @@ interface OpenAIStreamChunk {
 export class OpenCodeZenProvider implements LLMProvider {
   name = 'opencode-zen';
   config: OpenCodeZenConfig;
+  /** Timeout for the initial HTTP connection (until response headers arrive). */
+  private connectTimeoutMs: number;
+  /** Idle timeout: max ms to wait between successive chunks once streaming. */
+  private idleTimeoutMs: number;
 
   constructor(config: Partial<OpenCodeZenConfig> = {}) {
     const apiKey = config.apiKey || process.env.OPENCODE_ZEN_API_KEY;
@@ -69,6 +73,9 @@ export class OpenCodeZenProvider implements LLMProvider {
       apiKey,
       baseURL: 'https://opencode.ai/zen/v1',
     };
+
+    this.connectTimeoutMs = parseInt(process.env.LLM_CONNECT_TIMEOUT_MS || '15000', 10);
+    this.idleTimeoutMs = parseInt(process.env.LLM_IDLE_TIMEOUT_MS || '30000', 10);
   }
 
   private toOpenAIMessages(messages: Message[]): OpenAIMessage[] {
@@ -80,7 +87,20 @@ export class OpenCodeZenProvider implements LLMProvider {
           tool_call_id: m.toolCallId || 'unknown',
         };
       }
-      return { role: m.role, content: m.content };
+      const msg: OpenAIMessage = { role: m.role, content: m.content };
+      // Preserve tool_calls on assistant messages — required by the OpenAI API
+      // so that subsequent tool-role messages have a matching tool_call_id.
+      if (m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0) {
+        msg.tool_calls = m.tool_calls.map((tc) => ({
+          id: tc.id ?? 'unknown',
+          type: 'function' as const,
+          function: {
+            name: tc.name,
+            arguments: typeof tc.args === 'string' ? tc.args : JSON.stringify(tc.args),
+          },
+        }));
+      }
+      return msg;
     });
   }
 
@@ -115,14 +135,22 @@ export class OpenCodeZenProvider implements LLMProvider {
   }
 
   async invoke(messages: Message[], tools: ToolSchema[] = []): Promise<AIMessage> {
-    const response = await fetch(`${this.config.baseURL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.config.apiKey}`,
-      },
-      body: JSON.stringify(this.buildBody(messages, tools, false)),
-    });
+    const connectAbort = new AbortController();
+    const connectTimer = setTimeout(() => connectAbort.abort(new Error(`Connect timeout after ${this.connectTimeoutMs}ms`)), this.connectTimeoutMs);
+    let response: Response;
+    try {
+      response = await fetch(`${this.config.baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.config.apiKey}`,
+        },
+        body: JSON.stringify(this.buildBody(messages, tools, false)),
+        signal: connectAbort.signal,
+      });
+    } finally {
+      clearTimeout(connectTimer);
+    }
 
     if (!response.ok) {
       const err = await response.text();
@@ -142,14 +170,22 @@ export class OpenCodeZenProvider implements LLMProvider {
   }
 
   async *stream(messages: Message[], tools: ToolSchema[] = []): AsyncGenerator<AIMessage> {
-    const response = await fetch(`${this.config.baseURL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.config.apiKey}`,
-      },
-      body: JSON.stringify(this.buildBody(messages, tools, true)),
-    });
+    const connectAbort = new AbortController();
+    const connectTimer = setTimeout(() => connectAbort.abort(new Error(`Connect timeout after ${this.connectTimeoutMs}ms`)), this.connectTimeoutMs);
+    let response: Response;
+    try {
+      response = await fetch(`${this.config.baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.config.apiKey}`,
+        },
+        body: JSON.stringify(this.buildBody(messages, tools, true)),
+        signal: connectAbort.signal,
+      });
+    } finally {
+      clearTimeout(connectTimer); // headers received — connect phase done
+    }
 
     if (!response.ok) {
       const err = await response.text();
@@ -168,7 +204,7 @@ export class OpenCodeZenProvider implements LLMProvider {
     let buffer = '';
 
     while (true) {
-      const { done, value } = await reader.read();
+      const { done, value } = await readWithIdleTimeout(reader, this.idleTimeoutMs);
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
@@ -188,10 +224,10 @@ export class OpenCodeZenProvider implements LLMProvider {
         }
 
         const delta = chunk.choices[0]?.delta;
-        if (!delta) continue;
+        const finishReason = chunk.choices[0]?.finish_reason;
 
-        // Accumulate tool call argument fragments
-        if (delta.tool_calls) {
+        // Accumulate tool call argument fragments (delta may be absent on final chunk)
+        if (delta?.tool_calls) {
           for (const tc of delta.tool_calls) {
             if (!toolCallAccum[tc.index]) {
               toolCallAccum[tc.index] = { id: '', name: '', arguments: '' };
@@ -202,12 +238,13 @@ export class OpenCodeZenProvider implements LLMProvider {
           }
         }
 
-        if (delta.content) {
+        if (delta?.content) {
           yield { content: delta.content };
         }
 
-        // On final chunk (finish_reason set), emit accumulated tool calls
-        const finishReason = chunk.choices[0]?.finish_reason;
+        // Flush accumulated tool calls on finish_reason — checked independently
+        // of delta presence, because some APIs send finish_reason in a chunk
+        // where delta is empty or absent.
         if (finishReason === 'tool_calls' || finishReason === 'stop') {
           const accumulated = Object.values(toolCallAccum);
           if (accumulated.length > 0) {
@@ -238,4 +275,25 @@ export class OpenCodeZenProvider implements LLMProvider {
       currency: 'USD',
     };
   }
+}
+
+/**
+ * Races a single `reader.read()` against an idle timeout.
+ * Throws if no bytes arrive within `ms` milliseconds — this catches servers
+ * that stop sending mid-stream without closing the connection.
+ */
+function readWithIdleTimeout(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  ms: number,
+): Promise<{ done: boolean; value: Uint8Array | undefined }> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`Stream idle timeout: no data received for ${ms}ms`)),
+      ms,
+    );
+    reader.read().then(
+      (result) => { clearTimeout(timer); resolve({ done: result.done, value: result.value }); },
+      (err)    => { clearTimeout(timer); reject(err); },
+    );
+  });
 }

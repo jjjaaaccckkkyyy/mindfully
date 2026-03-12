@@ -47,12 +47,64 @@ export interface AgentRunOptions {
   tools: Tool[];
   toolExecutor: ToolExecutor;
   maxSteps?: number;
+  /** Pre-built message history (e.g. from ContextManager). If provided, the
+   *  input string is NOT prepended as an extra user message — callers are
+   *  responsible for including it in the history. */
+  history?: Array<{
+    role: 'system' | 'user' | 'assistant' | 'tool';
+    content: string;
+    tool_calls?: Array<{ name: string; args: Record<string, unknown>; id?: string }>;
+    toolCallId?: string;
+    toolName?: string;
+  }>;
 }
 
 export interface AgentRunnerConfig {
   maxSteps?: number;
   providerChain?: ProviderChain;
 }
+
+// ─── Token-level stream event types ──────────────────────────────────────────
+
+export interface StreamTokenEvent {
+  type: 'token';
+  content: string;
+}
+
+export interface StreamToolStartEvent {
+  type: 'tool_start';
+  name: string;
+  args: Record<string, unknown>;
+  id?: string;
+}
+
+export interface StreamToolResultEvent {
+  type: 'tool_result';
+  name: string;
+  result: unknown;
+  error?: string;
+  id?: string;
+}
+
+export interface StreamDoneEvent {
+  type: 'done';
+  messages: AgentMessage[];
+  cost?: CostInfo;
+}
+
+export interface StreamErrorEvent {
+  type: 'error';
+  message: string;
+}
+
+export type StreamEvent =
+  | StreamTokenEvent
+  | StreamToolStartEvent
+  | StreamToolResultEvent
+  | StreamDoneEvent
+  | StreamErrorEvent;
+
+// ─── AgentRunner ──────────────────────────────────────────────────────────────
 
 export class AgentRunner {
   private maxSteps: number;
@@ -65,8 +117,18 @@ export class AgentRunner {
 
   async run(options: AgentRunOptions): Promise<AgentState> {
     const maxSteps = options.maxSteps || this.maxSteps;
+    const initialMessages: AgentMessage[] = options.history
+      ? options.history.map((m) => ({
+          role: m.role as AgentMessage['role'],
+          content: m.content,
+          ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
+          ...(m.toolCallId ? { toolCallId: m.toolCallId } : {}),
+          ...(m.toolName ? { toolName: m.toolName } : {}),
+        }))
+      : [{ role: 'user', content: options.input }];
+
     const state: AgentState = {
-      messages: [{ role: 'user', content: options.input }],
+      messages: initialMessages,
       input: options.input,
       toolResults: [],
     };
@@ -120,7 +182,6 @@ export class AgentRunner {
       const hasToolCalls = assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0;
 
       if (!hasToolCalls) {
-        // No tool calls — treat this as the final response and stop
         logger.debug(`AgentRunner.run completed at step ${stepCount}`);
         break;
       }
@@ -168,73 +229,120 @@ export class AgentRunner {
     return state;
   }
 
-  async *stream(options: AgentRunOptions): AsyncGenerator<AgentState> {
+  /**
+   * Token-level streaming generator.
+   *
+   * Yields:
+   *   - `{ type: 'token', content }` for each text token chunk from the LLM
+   *   - `{ type: 'tool_start', name, args, id }` before executing a tool
+   *   - `{ type: 'tool_result', name, result, error?, id }` after executing a tool
+   *   - `{ type: 'done', messages, cost? }` when the agent finishes
+   *   - `{ type: 'error', message }` on fatal error (after which no more events)
+   */
+  async *stream(options: AgentRunOptions): AsyncGenerator<StreamEvent> {
     const maxSteps = options.maxSteps || this.maxSteps;
-    const state: AgentState = {
-      messages: [{ role: 'user', content: options.input }],
-      input: options.input,
-      toolResults: [],
-    };
-
-    yield state;
+    const messages: AgentMessage[] = options.history
+      ? options.history.map((m) => ({
+          role: m.role as AgentMessage['role'],
+          content: m.content,
+          ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
+          ...(m.toolCallId ? { toolCallId: m.toolCallId } : {}),
+          ...(m.toolName ? { toolName: m.toolName } : {}),
+        }))
+      : [{ role: 'user', content: options.input }];
 
     const toolSchemas = toToolSchemas(options.tools);
     let stepCount = 0;
 
-    logger.debug(`AgentRunner.stream started`, { input: options.input, toolCount: options.tools.length, maxSteps });
+    logger.debug(`AgentRunner.stream started`, {
+      input: options.input,
+      toolCount: options.tools.length,
+      maxSteps,
+    });
 
     while (stepCount < maxSteps) {
-      const messages = state.messages.map((m) => ({
+      const providerMessages = messages.map((m) => ({
         role: m.role,
         content: m.content,
+        tool_calls: m.tool_calls,
         toolCallId: m.toolCallId,
         toolName: m.toolName,
       }));
 
-      let response;
+      // Accumulate tokens + tool calls for this turn
+      let turnContent = '';
+      const toolCallAccum: Record<
+        string,
+        { name: string; args: Record<string, unknown>; id?: string }
+      > = {};
+
       try {
-        response = await this.providerChain.invoke(messages, toolSchemas);
+        for await (const chunk of this.providerChain.stream(providerMessages, toolSchemas)) {
+          // Text token
+          if (chunk.content) {
+            turnContent += chunk.content;
+            yield { type: 'token', content: chunk.content };
+          }
+
+          // Tool call chunk — accumulate
+          if (chunk.tool_calls) {
+            for (const tc of chunk.tool_calls) {
+              const key = tc.id || tc.name;
+              if (!toolCallAccum[key]) {
+                let parsedArgs: Record<string, unknown>;
+                try {
+                  parsedArgs = JSON.parse(tc.args) as Record<string, unknown>;
+                } catch {
+                  parsedArgs = {};
+                }
+                toolCallAccum[key] = { name: tc.name, args: parsedArgs, id: tc.id };
+              } else {
+                // Merge streaming args fragments
+                try {
+                  const merged = JSON.parse(tc.args) as Record<string, unknown>;
+                  Object.assign(toolCallAccum[key].args, merged);
+                } catch {
+                  // partial fragment — ignore
+                }
+              }
+            }
+          }
+        }
       } catch (err) {
-        state.error = err instanceof Error ? err.message : 'LLM invocation failed';
-        logger.warn(`AgentRunner.stream LLM invocation failed at step ${stepCount}: ${state.error}`);
-        yield state;
-        break;
+        const message = err instanceof Error ? err.message : 'LLM stream failed';
+        logger.warn(`AgentRunner.stream LLM failed at step ${stepCount}: ${message}`);
+        yield { type: 'error', message };
+        return;
       }
 
-      const content = response.content || '';
-
-      // Map tool_calls from AIMessage (args: string) → AgentMessage (args: Record)
-      const toolCalls = response.tool_calls?.map((tc) => ({
-        name: tc.name,
-        args: (() => {
-          try {
-            return JSON.parse(tc.args) as Record<string, unknown>;
-          } catch {
-            return {} as Record<string, unknown>;
-          }
-        })(),
-        id: tc.id,
-      }));
-
+      const toolCalls = Object.values(toolCallAccum);
       const assistantMessage: AgentMessage = {
         role: 'assistant',
-        content,
-        ...(toolCalls && toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+        content: turnContent,
+        ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
       };
 
-      state.messages.push(assistantMessage);
+      messages.push(assistantMessage);
       stepCount++;
 
-      const hasToolCalls = assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0;
-
-      if (!hasToolCalls) {
-        logger.debug(`AgentRunner.stream completed at step ${stepCount}`);
-        yield state;
-        break;
+      if (toolCalls.length === 0) {
+        // Final text-only response
+        const cost = this.getCostInfo();
+        logger.debug(`AgentRunner.stream completed`, {
+          steps: stepCount,
+          messages: messages.length,
+          totalCost: cost?.totalCost,
+        });
+        yield { type: 'done', messages, cost };
+        return;
       }
 
-      for (const call of assistantMessage.tool_calls || []) {
+      // Execute tools
+      for (const call of toolCalls) {
         const tool = options.tools.find((t) => t.name === call.name);
+
+        logger.debug(`AgentRunner.stream: tool_start "${call.name}"`, { args: call.args });
+        yield { type: 'tool_start', name: call.name, args: call.args, id: call.id };
 
         let result: unknown;
         let error: string | undefined;
@@ -243,37 +351,37 @@ export class AgentRunner {
           error = `Tool "${call.name}" not found`;
           logger.warn(`AgentRunner.stream: tool not found: ${call.name}`);
         } else {
-          logger.debug(`AgentRunner.stream: executing tool "${call.name}"`, { args: call.args });
           try {
             const execResult = await options.toolExecutor(call.name, call.args);
             result = execResult.result;
             error = execResult.error;
             if (error) {
-              logger.warn(`AgentRunner.stream: tool "${call.name}" returned error: ${error}`);
+              logger.warn(`AgentRunner.stream: tool "${call.name}" returned error`, { error });
+            } else {
+              const preview = truncate(JSON.stringify(result), 200);
+              logger.debug(`AgentRunner.stream: tool_result "${call.name}"`, { result: preview });
             }
           } catch (e) {
             error = e instanceof Error ? e.message : 'Tool execution failed';
-            logger.warn(`AgentRunner.stream: tool "${call.name}" threw: ${error}`);
+            logger.warn(`AgentRunner.stream: tool "${call.name}" threw`, { error });
           }
         }
 
-        state.toolResults.push({
-          toolName: call.name,
-          result,
-          error,
-          toolCallId: call.id,
-        });
+        yield { type: 'tool_result', name: call.name, result, error, id: call.id };
 
-        state.messages.push({
+        messages.push({
           role: 'tool',
           content: error || JSON.stringify(result),
           toolName: call.name,
           toolCallId: call.id,
         });
       }
-
-      yield state;
     }
+
+    // Hit maxSteps
+    logger.warn(`AgentRunner.stream hit maxSteps (${maxSteps})`);
+    const cost = this.getCostInfo();
+    yield { type: 'done', messages, cost };
   }
 
   getCostInfo(): CostInfo | undefined {
@@ -289,6 +397,11 @@ export class AgentRunner {
 
 export function createAgentRunner(config?: AgentRunnerConfig): AgentRunner {
   return new AgentRunner(config);
+}
+
+/** Truncate a string to at most `maxLen` chars, appending '…' if cut. */
+function truncate(s: string, maxLen: number): string {
+  return s.length <= maxLen ? s : s.slice(0, maxLen) + '…';
 }
 
 /**
@@ -360,3 +473,4 @@ function zodTypeToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
   if (schema instanceof z.ZodEnum) return { type: 'string', enum: schema.options };
   return {};
 }
+

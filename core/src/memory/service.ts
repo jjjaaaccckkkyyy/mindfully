@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { MarkdownStore } from './markdown.js';
 import { QdrantClient, type QdrantConfig } from './qdrant.js';
+import { createEmbeddingProvider, type EmbeddingProvider } from './embeddings.js';
 
 export interface MemoryEntry {
   id: string;
@@ -37,11 +38,13 @@ export class MemoryService {
   private qdrantClient?: QdrantClient;
   private collectionName: string;
   private vectorSize: number;
+  private embeddingProvider: EmbeddingProvider;
 
   constructor(config: MemoryServiceConfig = {}) {
     this.markdownStore = new MarkdownStore();
     this.collectionName = config.collectionName || 'mindful_memories';
     this.vectorSize = config.vectorSize || 1536;
+    this.embeddingProvider = createEmbeddingProvider();
 
     if (config.qdrant) {
       this.qdrantClient = new QdrantClient(config.qdrant);
@@ -102,9 +105,11 @@ export class MemoryService {
       if (agentId) filter.agentId = agentId;
       if (memoryType !== 'all') filter.memoryType = memoryType;
 
+      const queryVector = await this.embeddingProvider.embed(query);
+
       const vectorResults = await this.qdrantClient.search(
         this.collectionName,
-        new Array(this.vectorSize).fill(0),
+        queryVector,
         { limit, scoreThreshold, filter }
       );
 

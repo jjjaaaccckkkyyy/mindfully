@@ -1,6 +1,13 @@
 import { defineConfig } from 'vitest/config';
+import path from 'path';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      core: path.resolve(__dirname, '../core/src/index.ts'),
+      agent: path.resolve(__dirname, '../agent/src/index.ts'),
+    },
+  },
   test: {
     globals: true,
     environment: 'node',
@@ -15,6 +22,8 @@ export default defineConfig({
         'src/auth/strategies/', 
         'src/types/',
         'vitest.config.ts',
+        'src/db/migrate.ts',
+        'eslint.config.js',
       ],
       thresholds: {
         lines: 80,
