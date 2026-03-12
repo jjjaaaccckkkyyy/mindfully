@@ -1,13 +1,21 @@
 import { initTRPC, TRPCError } from '@trpc/server';
 import { Request, Response } from 'express';
 import { verifyIdToken } from './auth/utils/id-token.js';
+import { logger } from './logger.js';
 
 export interface Context {
   req: Request;
   res: Response;
 }
 
-const t = initTRPC.context<Context>().create();
+const t = initTRPC.context<Context>().create({
+  errorFormatter({ shape, error }) {
+    if (error.code === 'INTERNAL_SERVER_ERROR') {
+      logger.error('tRPC internal error', { path: shape.data?.path, message: error.message });
+    }
+    return shape;
+  },
+});
 
 export const router = t.router;
 export const publicProcedure = t.procedure;

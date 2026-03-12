@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { AgentRunner } from '../agents/runner.js';
 import { ProviderChain } from '../agents/providers/chain.js';
 import type { LLMProvider, Message, AIMessage, CostInfo, LLMConfig } from '../agents/providers/base.js';
-import type { Tool } from '../tools/index.js';
+import type { Tool } from 'core';
 import type { ToolExecutor } from '../agents/runner.js';
 
 // ---------------------------------------------------------------------------

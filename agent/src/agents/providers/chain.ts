@@ -1,5 +1,8 @@
 import type { LLMProvider, Message, AIMessage, CostInfo, FallbackConfig, ToolSchema } from './base.js';
 import { DEFAULT_FALLBACK_CONFIG } from './base.js';
+import { createLogger } from 'core';
+
+const logger = createLogger('agent:provider-chain');
 
 export class ProviderChain {
   private providers: LLMProvider[];
@@ -35,9 +38,8 @@ export class ProviderChain {
           return response;
         } catch (error) {
           lastError = error instanceof Error ? error : new Error(String(error));
-          console.warn(
-            `Provider ${provider.name} failed (attempt ${retry + 1}/${this.config.retryCount}):`,
-            lastError.message,
+          logger.warn(
+            `Provider ${provider.name} failed (attempt ${retry + 1}/${this.config.retryCount}): ${lastError.message}`,
           );
 
           if (this.config.delayMs && retry < this.config.retryCount - 1) {
@@ -67,7 +69,7 @@ export class ProviderChain {
         return;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        console.warn(`Provider ${provider.name} stream failed:`, lastError.message);
+        logger.warn(`Provider ${provider.name} stream failed: ${lastError.message}`);
 
         if (this.config.delayMs && providerIndex < this.providers.length - 1) {
           await this.delay(this.config.delayMs);

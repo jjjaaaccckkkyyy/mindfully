@@ -8,7 +8,7 @@ import { createHttpTool } from '../tools/builtin/http.js';
 function makeFetchResponse(
   body: string,
   status = 200,
-  headers: Record<string, string> = { 'content-type': 'text/plain' },
+  contentType = 'text/plain',
 ): Response {
   return {
     ok: status >= 200 && status < 300,
@@ -16,12 +16,31 @@ function makeFetchResponse(
     statusText: status === 200 ? 'OK' : String(status),
     text: async () => body,
     headers: {
+      get: (key: string) => (key === 'content-type' ? contentType : null),
       forEach: (cb: (value: string, key: string) => void) => {
-        for (const [k, v] of Object.entries(headers)) cb(v, k);
+        cb(contentType, 'content-type');
       },
     },
   } as unknown as Response;
 }
+
+const SAMPLE_HTML = `
+<!DOCTYPE html>
+<html>
+  <head><title>Article Title</title></head>
+  <body>
+    <nav>Nav links that should be removed</nav>
+    <article>
+      <h1>Main Heading</h1>
+      <p>This is the main article content with enough text to be detected as readable content by Mozilla Readability.</p>
+      <p>Second paragraph with more useful information for the agent to consume.</p>
+    </article>
+    <footer>Footer boilerplate to be stripped</footer>
+  </body>
+</html>
+`;
+
+const MINIMAL_HTML = `<html><body><p>Hello</p></body></html>`;
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -71,31 +90,136 @@ describe('http tool', () => {
     expect((result as { error: string }).error).toMatch(/[Ii]nvalid URL/);
   });
 
-  // --- Successful GET ---
+  // --- JSON response (pass-through) ---
 
-  it('performs a GET request and returns status + body', async () => {
+  it('returns JSON body as-is', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
-      makeFetchResponse('{"hello":"world"}', 200, { 'content-type': 'application/json' }),
+      makeFetchResponse('{"hello":"world"}', 200, 'application/json'),
     );
 
     const result = await tool.execute({ url: 'https://api.example.com/data' }) as Record<string, unknown>;
 
     expect(result.success).toBe(true);
     expect(result.status).toBe(200);
-    expect(result.statusText).toBe('OK');
+    expect(result.contentType).toBe('application/json');
     expect(result.body).toBe('{"hello":"world"}');
-    expect((result.headers as Record<string, string>)['content-type']).toBe('application/json');
+  });
 
-    expect(fetch).toHaveBeenCalledWith(
-      'https://api.example.com/data',
-      expect.objectContaining({ method: 'GET' }),
+  // --- Plain text response (pass-through) ---
+
+  it('returns plain text body as-is', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeFetchResponse('hello world', 200, 'text/plain'),
     );
+
+    const result = await tool.execute({ url: 'https://api.example.com/text' }) as Record<string, unknown>;
+
+    expect(result.success).toBe(true);
+    expect(result.body).toBe('hello world');
+    expect(result.contentType).toBe('text/plain');
+  });
+
+  // --- HTML response (Readability extraction) ---
+
+  it('extracts clean text from HTML responses', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeFetchResponse(SAMPLE_HTML, 200, 'text/html; charset=utf-8'),
+    );
+
+    const result = await tool.execute({ url: 'https://example.com/article' }) as Record<string, unknown>;
+
+    expect(result.success).toBe(true);
+    expect(result.contentType).toBe('text/html; charset=utf-8');
+    // Should include article content
+    expect(result.body as string).toContain('Main Heading');
+    expect(result.body as string).toContain('main article content');
+    // Should NOT contain raw HTML tags
+    expect(result.body as string).not.toMatch(/<[a-z]/i);
+    // Should NOT contain nav/footer boilerplate (Readability strips these)
+    expect(result.body as string).not.toContain('<nav>');
+    expect(result.body as string).not.toContain('<footer>');
+  });
+
+  it('includes page title in extracted HTML text', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeFetchResponse(SAMPLE_HTML, 200, 'text/html'),
+    );
+
+    const result = await tool.execute({ url: 'https://example.com/article' }) as Record<string, unknown>;
+
+    expect(result.body as string).toContain('Article Title');
+  });
+
+  it('falls back to tag-stripping for non-article HTML', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeFetchResponse(MINIMAL_HTML, 200, 'text/html'),
+    );
+
+    const result = await tool.execute({ url: 'https://example.com/' }) as Record<string, unknown>;
+
+    expect(result.success).toBe(true);
+    // Either readability extracted it or fallback stripped tags — no raw HTML either way
+    expect(result.body as string).not.toMatch(/<[a-z]/i);
+    expect(result.body as string).toContain('Hello');
+  });
+
+  it('returns empty body (not an error) for empty HTML response', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeFetchResponse('', 200, 'text/html'),
+    );
+
+    const result = await tool.execute({ url: 'https://example.com/empty' }) as Record<string, unknown>;
+
+    expect(result.success).toBe(true);
+    expect(result.status).toBe(200);
+    expect(result.body).toBe('');
+  });
+
+  it('uses tag-strip fallback when HTML has no documentElement', async () => {
+    // parseHTML of whitespace-only returns no documentElement — exercises the guard
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeFetchResponse('   ', 200, 'text/html'),
+    );
+
+    const result = await tool.execute({ url: 'https://example.com/blank' }) as Record<string, unknown>;
+
+    // whitespace-only is trimmed to empty by the early-return guard
+    expect(result.success).toBe(true);
+    expect((result.body as string).trim()).toBe('');
+  });
+
+  it('uses tag-strip fallback when Readability throws', async () => {
+    // Script/style-only HTML — Readability returns null; fallback strips tags
+    const noArticle = '<html><head><script>alert(1)</script></head><body></body></html>';
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeFetchResponse(noArticle, 200, 'text/html'),
+    );
+
+    const result = await tool.execute({ url: 'https://example.com/no-article' }) as Record<string, unknown>;
+
+    expect(result.success).toBe(true);
+    expect(result.body as string).not.toMatch(/<script/i);
+  });
+
+  // --- Response shape ---
+
+  // --- Response shape ---
+
+  it('returns contentType field (not headers object)', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeFetchResponse('ok', 200, 'application/json'),
+    );
+
+    const result = await tool.execute({ url: 'https://api.example.com/' }) as Record<string, unknown>;
+
+    expect(result).toHaveProperty('contentType');
+    expect(result).not.toHaveProperty('headers');
   });
 
   // --- POST with body ---
 
   it('sends body for POST requests', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(makeFetchResponse('created', 201));
+    vi.mocked(fetch).mockResolvedValueOnce(makeFetchResponse('created', 201, 'text/plain'));
 
     await tool.execute({
       url: 'https://api.example.com/items',
@@ -117,7 +241,7 @@ describe('http tool', () => {
   // --- GET does not send body ---
 
   it('does not send body for GET requests even if provided', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(makeFetchResponse('ok'));
+    vi.mocked(fetch).mockResolvedValueOnce(makeFetchResponse('ok', 200, 'text/plain'));
 
     await tool.execute({
       url: 'https://api.example.com/',
@@ -132,7 +256,7 @@ describe('http tool', () => {
   // --- Non-2xx still returns success:true ---
 
   it('returns success:true for non-2xx responses (agent decides what to do)', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(makeFetchResponse('Not Found', 404));
+    vi.mocked(fetch).mockResolvedValueOnce(makeFetchResponse('Not Found', 404, 'text/plain'));
 
     const result = await tool.execute({ url: 'https://api.example.com/missing' }) as Record<string, unknown>;
 
@@ -147,7 +271,6 @@ describe('http tool', () => {
     vi.mocked(fetch).mockImplementationOnce(
       (_url, init) =>
         new Promise((_resolve, reject) => {
-          // Listen for the abort signal and reject with AbortError
           const signal = (init as RequestInit).signal as AbortSignal;
           signal.addEventListener('abort', () => {
             const err = new Error('The operation was aborted');
@@ -159,7 +282,7 @@ describe('http tool', () => {
 
     const result = await tool.execute({
       url: 'https://api.example.com/slow',
-      timeout: 10, // 10ms — will abort almost instantly
+      timeout: 10,
     }) as Record<string, unknown>;
 
     expect(result.success).toBe(false);

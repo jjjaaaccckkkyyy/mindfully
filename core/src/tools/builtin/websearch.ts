@@ -1,5 +1,8 @@
 import { z } from 'zod';
+import { createLogger } from '../../logger.js';
 import { createTool, type Tool } from '../index.js';
+
+const logger = createLogger('core:websearch');
 
 const BRAVE_SEARCH_URL = 'https://api.search.brave.com/res/v1/web/search';
 const CONTENT_TRUNCATE_CHARS = 2000;
@@ -99,6 +102,7 @@ export function createWebsearchTool(): Tool {
 
       const apiKey = process.env.BRAVE_API_KEY;
       if (!apiKey) {
+        logger.warn('BRAVE_API_KEY is not configured');
         return { success: false, error: 'BRAVE_API_KEY is not configured' };
       }
 
@@ -116,6 +120,8 @@ export function createWebsearchTool(): Tool {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+      logger.debug('Brave search request', { query: args.query, count: args.count ?? 10 });
+
       let braveData: BraveSearchResponse;
       try {
         const response = await fetch(searchUrl.toString(), {
@@ -128,6 +134,7 @@ export function createWebsearchTool(): Tool {
 
         if (!response.ok) {
           const errorBody = await response.text().catch(() => '');
+          logger.warn('Brave Search API error', { status: response.status, body: errorBody });
           return {
             success: false,
             error: `Brave Search API returned ${response.status} ${response.statusText}${errorBody ? ': ' + errorBody : ''}`,
@@ -137,11 +144,14 @@ export function createWebsearchTool(): Tool {
         braveData = (await response.json()) as BraveSearchResponse;
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
+          logger.warn('Search request timed out', { query: args.query, timeoutMs });
           return { success: false, error: `Search request timed out after ${timeoutMs}ms` };
         }
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn('Search request failed', { query: args.query, error: message });
         return {
           success: false,
-          error: err instanceof Error ? err.message : String(err),
+          error: message,
         };
       } finally {
         clearTimeout(timer);
@@ -155,8 +165,11 @@ export function createWebsearchTool(): Tool {
         snippet: stripHtml(r.description ?? ''),
       }));
 
+      logger.debug('Brave search results', { query: args.query, resultCount: results.length });
+
       // Optionally fetch page content for each result
       if (args.fetchContent) {
+        logger.debug('Fetching full page content for results', { count: results.length });
         const contentTimeout = Math.min(timeoutMs, 10_000); // cap per-page timeout at 10s
         await Promise.all(
           results.map(async (result) => {

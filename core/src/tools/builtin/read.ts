@@ -1,7 +1,10 @@
-import { z } from 'zod';
-import { createTool, type Tool, type ToolContext } from '../index.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { z } from 'zod';
+import { createLogger } from '../../logger.js';
+import { createTool, type Tool, type ToolContext } from '../index.js';
+
+const logger = createLogger('core:read');
 
 const ReadSchema = z.object({
   path: z.string().describe('The file path to read'),
@@ -22,16 +25,21 @@ export function createReadTool(): Tool {
           ? args.path
           : path.join(workspaceDir, args.path);
 
+        logger.debug('read file', { path: filePath });
         const content = await fs.readFile(filePath, 'utf-8');
+        logger.debug('read file succeeded', { path: filePath, bytes: content.length });
+
         return {
           success: true,
           content,
           path: filePath,
         };
       } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to read file';
+        logger.warn('read file failed', { path: args.path, error: message });
         return {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to read file',
+          error: message,
         };
       }
     },

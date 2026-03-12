@@ -1,7 +1,10 @@
-import { z } from 'zod';
-import { createTool, type Tool, type ToolContext } from '../index.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { z } from 'zod';
+import { createLogger } from '../../logger.js';
+import { createTool, type Tool, type ToolContext } from '../index.js';
+
+const logger = createLogger('core:write');
 
 const WriteSchema = z.object({
   path: z.string().describe('The file path to write'),
@@ -23,8 +26,10 @@ export function createWriteTool(): Tool {
           ? args.path
           : path.join(workspaceDir, args.path);
 
+        logger.debug('write file', { path: filePath, bytes: args.content.length });
         await fs.mkdir(path.dirname(filePath), { recursive: true });
         await fs.writeFile(filePath, args.content, 'utf-8');
+        logger.debug('write file succeeded', { path: filePath, bytes: args.content.length });
 
         return {
           success: true,
@@ -32,9 +37,11 @@ export function createWriteTool(): Tool {
           bytesWritten: args.content.length,
         };
       } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to write file';
+        logger.warn('write file failed', { path: args.path, error: message });
         return {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to write file',
+          error: message,
         };
       }
     },

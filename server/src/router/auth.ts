@@ -11,6 +11,7 @@ import { requireAuth } from '../auth/middleware';
 import { handleGitHubAuth } from '../auth/oauth/github';
 import { handleGoogleAuth } from '../auth/oauth/google';
 import { z } from 'zod';
+import { logger } from '../logger';
 
 const router: RouterType = Router();
 
@@ -64,7 +65,7 @@ const handleOAuthVerify = (provider: 'github' | 'google', handler: (code: string
         });
       });
     } catch (error) {
-      console.error(`${provider} OAuth error:`, error);
+      logger.error(`${provider} OAuth error`, { error });
       res.status(401).json({
         error: 'Authentication failed',
         message: error instanceof Error ? error.message : `${provider} authentication failed`,
@@ -101,7 +102,7 @@ router.post('/register', async (req: Request, res: Response) => {
       userId: user.id,
     });
   } catch (error) {
-    console.error('Registration error:', error);
+    logger.error('Registration error', { error });
     res.status(500).json({ error: 'Registration failed', message: 'An error occurred during registration' });
   }
 });
@@ -152,7 +153,7 @@ router.get('/verify-email', async (req: Request, res: Response) => {
     await verificationTokenRepository.delete(token);
     res.json({ message: 'Email verified successfully. You can now log in.' });
   } catch (error) {
-    console.error('Email verification error:', error);
+    logger.error('Email verification error', { error });
     res.status(500).json({ error: 'Verification failed', message: 'An error occurred during email verification' });
   }
 });
@@ -182,7 +183,7 @@ router.post('/resend-verification', async (req: Request, res: Response) => {
     await sendVerificationEmail(user.email, token);
     res.json({ message: 'If an account exists with this email, a verification email has been sent.' });
   } catch (error) {
-    console.error('Resend verification error:', error);
+    logger.error('Resend verification error', { error });
     res.status(500).json({ error: 'Failed to resend', message: 'An error occurred' });
   }
 });
@@ -205,7 +206,7 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
     }
     res.json({ message: 'If an account exists with this email, a password reset email has been sent.' });
   } catch (error) {
-    console.error('Forgot password error:', error);
+    logger.error('Forgot password error', { error });
     res.status(500).json({ error: 'Failed', message: 'An error occurred' });
   }
 });
@@ -233,7 +234,7 @@ router.post('/reset-password', async (req: Request, res: Response) => {
     await passwordResetTokenRepository.delete(data.token);
     res.json({ message: 'Password reset successfully. You can now log in.' });
   } catch (error) {
-    console.error('Reset password error:', error);
+    logger.error('Reset password error', { error });
     res.status(500).json({ error: 'Failed', message: 'An error occurred' });
   }
 });
@@ -250,7 +251,7 @@ router.get('/sessions', requireAuth, async (req: Request, res: Response) => {
     const sessions = await sessionsRepository.findByUserId(user.id, sessionId);
     res.json({ sessions });
   } catch (error) {
-    console.error('Get sessions error:', error);
+    logger.error('Get sessions error', { error });
     res.status(500).json({ error: 'Failed to get sessions', message: 'An error occurred' });
   }
 });
@@ -271,7 +272,7 @@ router.delete('/sessions/:sessionId', requireAuth, async (req: Request, res: Res
 
     res.json({ message: 'Session terminated successfully' });
   } catch (error) {
-    console.error('Delete session error:', error);
+    logger.error('Delete session error', { error });
     res.status(500).json({ error: 'Failed to delete session', message: 'An error occurred' });
   }
 });
@@ -284,7 +285,7 @@ router.delete('/sessions', requireAuth, async (req: Request, res: Response) => {
     const count = await sessionsRepository.deleteAllExcept(user.id, currentSessionId);
     res.json({ message: `Terminated ${count} session(s)`, count });
   } catch (error) {
-    console.error('Delete all sessions error:', error);
+    logger.error('Delete all sessions error', { error });
     res.status(500).json({ error: 'Failed to delete sessions', message: 'An error occurred' });
   }
 });

@@ -10,7 +10,7 @@ export class OllamaProvider implements LLMProvider {
 
   constructor(config: Partial<OllamaConfig> = {}) {
     const baseURL = config.baseURL || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-    
+
     this.config = {
       provider: 'ollama',
       model: config.model || 'llama3.2',

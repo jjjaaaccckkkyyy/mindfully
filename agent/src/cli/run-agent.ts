@@ -3,10 +3,10 @@
  * CLI runner for the AgentRunner.
  *
  * Usage:
- *   pnpm --filter core run-agent "Your prompt here"
- *   pnpm --filter core run-agent --cwd /some/dir "Your prompt"
- *   pnpm --filter core run-agent --tools read,bash "Your prompt"
- *   pnpm --filter core run-agent          # reads prompt from stdin
+ *   pnpm --filter agent run-agent "Your prompt here"
+ *   pnpm --filter agent run-agent --cwd /some/dir "Your prompt"
+ *   pnpm --filter agent run-agent --tools read,bash "Your prompt"
+ *   pnpm --filter agent run-agent          # reads prompt from stdin
  *
  * Env vars are loaded from server/.env via --env-file flag in the npm script.
  */
@@ -14,8 +14,11 @@
 import * as readline from 'node:readline';
 import { AgentRunner } from '../agents/runner.js';
 import { createProviderChain } from '../agents/providers/index.js';
-import { createBuiltinTools, builtinToolNames, type BuiltinToolName } from '../tools/builtin/index.js';
-import type { Tool, ToolContext } from '../tools/index.js';
+import { createBuiltinTools, builtinToolNames, type BuiltinToolName } from 'core';
+import type { Tool, ToolContext } from 'core';
+import { createLogger } from 'core';
+
+const logger = createLogger('agent:cli');
 
 // ---------------------------------------------------------------------------
 // Arg parsing
@@ -103,7 +106,7 @@ async function main(): Promise<void> {
   // Resolve prompt
   const prompt = promptArg ?? (await readStdin());
   if (!prompt) {
-    console.error('Error: no prompt provided.');
+    logger.error('No prompt provided.');
     process.exit(1);
   }
 
@@ -119,9 +122,8 @@ async function main(): Promise<void> {
   try {
     providerChain = createProviderChain();
   } catch (err) {
-    console.error(
-      'Error creating provider chain:',
-      err instanceof Error ? err.message : String(err),
+    logger.error(
+      `Error creating provider chain: ${err instanceof Error ? err.message : String(err)}`,
     );
     process.exit(1);
   }
@@ -201,6 +203,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error('Fatal error:', err instanceof Error ? err.message : String(err));
+  logger.error(`Fatal error: ${err instanceof Error ? err.message : String(err)}`);
   process.exit(1);
 });

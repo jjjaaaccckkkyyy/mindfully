@@ -6,6 +6,9 @@ import { GoogleProvider } from './google.js';
 import { ProviderChain } from './chain.js';
 import type { LLMProvider, FallbackConfig } from './base.js';
 import { DEFAULT_MODEL } from './base.js';
+import { createLogger } from 'core';
+
+const logger = createLogger('agent:providers');
 
 export interface ProviderFactoryConfig {
   providers?: string[];
@@ -47,7 +50,7 @@ export function createProviderChain(config: ProviderFactoryConfig = {}): Provide
       try {
         return createProvider(name, { model, temperature, maxTokens });
       } catch (error) {
-        console.warn(`Failed to create provider ${name}:`, error instanceof Error ? error.message : String(error));
+        logger.warn(`Failed to create provider ${name}: ${error instanceof Error ? error.message : String(error)}`);
         return null;
       }
     })

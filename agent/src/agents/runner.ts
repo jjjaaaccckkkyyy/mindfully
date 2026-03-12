@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { createProviderChain, type ProviderChain, type CostInfo, type ToolSchema } from './providers/index.js';
-import type { Tool } from '../tools/index.js';
+import type { Tool } from 'core';
+import { createLogger } from 'core';
+
+const logger = createLogger('agent:runner');
 
 export interface AgentState {
   messages: AgentMessage[];
@@ -71,6 +74,8 @@ export class AgentRunner {
     const toolSchemas = toToolSchemas(options.tools);
     let stepCount = 0;
 
+    logger.debug(`AgentRunner.run started`, { input: options.input, toolCount: options.tools.length, maxSteps });
+
     while (stepCount < maxSteps) {
       const messages = state.messages.map((m) => ({
         role: m.role,
@@ -84,6 +89,7 @@ export class AgentRunner {
         response = await this.providerChain.invoke(messages, toolSchemas);
       } catch (err) {
         state.error = err instanceof Error ? err.message : 'LLM invocation failed';
+        logger.warn(`AgentRunner LLM invocation failed at step ${stepCount}: ${state.error}`);
         break;
       }
 
@@ -115,6 +121,7 @@ export class AgentRunner {
 
       if (!hasToolCalls) {
         // No tool calls — treat this as the final response and stop
+        logger.debug(`AgentRunner.run completed at step ${stepCount}`);
         break;
       }
 
@@ -126,13 +133,19 @@ export class AgentRunner {
 
         if (!tool) {
           error = `Tool "${call.name}" not found`;
+          logger.warn(`AgentRunner: tool not found: ${call.name}`);
         } else {
+          logger.debug(`AgentRunner: executing tool "${call.name}"`, { args: call.args });
           try {
             const execResult = await options.toolExecutor(call.name, call.args);
             result = execResult.result;
             error = execResult.error;
+            if (error) {
+              logger.warn(`AgentRunner: tool "${call.name}" returned error: ${error}`);
+            }
           } catch (e) {
             error = e instanceof Error ? e.message : 'Tool execution failed';
+            logger.warn(`AgentRunner: tool "${call.name}" threw: ${error}`);
           }
         }
 
@@ -168,6 +181,8 @@ export class AgentRunner {
     const toolSchemas = toToolSchemas(options.tools);
     let stepCount = 0;
 
+    logger.debug(`AgentRunner.stream started`, { input: options.input, toolCount: options.tools.length, maxSteps });
+
     while (stepCount < maxSteps) {
       const messages = state.messages.map((m) => ({
         role: m.role,
@@ -181,6 +196,7 @@ export class AgentRunner {
         response = await this.providerChain.invoke(messages, toolSchemas);
       } catch (err) {
         state.error = err instanceof Error ? err.message : 'LLM invocation failed';
+        logger.warn(`AgentRunner.stream LLM invocation failed at step ${stepCount}: ${state.error}`);
         yield state;
         break;
       }
@@ -212,6 +228,7 @@ export class AgentRunner {
       const hasToolCalls = assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0;
 
       if (!hasToolCalls) {
+        logger.debug(`AgentRunner.stream completed at step ${stepCount}`);
         yield state;
         break;
       }
@@ -224,13 +241,19 @@ export class AgentRunner {
 
         if (!tool) {
           error = `Tool "${call.name}" not found`;
+          logger.warn(`AgentRunner.stream: tool not found: ${call.name}`);
         } else {
+          logger.debug(`AgentRunner.stream: executing tool "${call.name}"`, { args: call.args });
           try {
             const execResult = await options.toolExecutor(call.name, call.args);
             result = execResult.result;
             error = execResult.error;
+            if (error) {
+              logger.warn(`AgentRunner.stream: tool "${call.name}" returned error: ${error}`);
+            }
           } catch (e) {
             error = e instanceof Error ? e.message : 'Tool execution failed';
+            logger.warn(`AgentRunner.stream: tool "${call.name}" threw: ${error}`);
           }
         }
 

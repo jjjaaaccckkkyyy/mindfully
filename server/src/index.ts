@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import expressWinston from 'express-winston';
 import { createExpressMiddleware } from '@trpc/server/adapters/express';
 import session from 'express-session';
 import { appRouter } from './router';
@@ -8,6 +9,7 @@ import authRouter from './router/auth';
 import { passport, getSessionConfig } from './auth';
 import { db } from './db';
 import { initEmailService } from './email';
+import { logger } from './logger';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -24,6 +26,15 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// HTTP request logging
+app.use(expressWinston.logger({
+  winstonInstance: logger,
+  meta: false,
+  msg: 'HTTP {{req.method}} {{req.url}} {{res.statusCode}} {{res.responseTime}}ms',
+  expressFormat: false,
+  colorize: false,
+}));
 
 app.use(session(getSessionConfig()));
 
@@ -53,5 +64,5 @@ app.get('/health', async (_req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  logger.info(`Server running on http://localhost:${PORT}`);
 });

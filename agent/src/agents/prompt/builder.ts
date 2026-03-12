@@ -1,4 +1,4 @@
-import type { ToolDefinition } from '../../tools/index.js';
+import type { ToolDefinition } from 'core';
 
 export interface PromptBuildOptions {
   coreInstructions?: string;

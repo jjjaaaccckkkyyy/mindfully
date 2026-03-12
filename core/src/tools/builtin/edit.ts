@@ -1,7 +1,10 @@
-import { z } from 'zod';
-import { createTool, type Tool, type ToolContext } from '../index.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { z } from 'zod';
+import { createLogger } from '../../logger.js';
+import { createTool, type Tool, type ToolContext } from '../index.js';
+
+const logger = createLogger('core:edit');
 
 const EditSchema = z.object({
   path: z.string().describe('The file path to edit'),
@@ -24,9 +27,11 @@ export function createEditTool(): Tool {
           ? args.path
           : path.join(workspaceDir, args.path);
 
+        logger.debug('edit file', { path: filePath, searchLength: args.search.length });
         let content = await fs.readFile(filePath, 'utf-8');
 
         if (!content.includes(args.search)) {
+          logger.warn('edit file: search text not found', { path: filePath });
           return {
             success: false,
             error: `Search text not found in file: ${args.search}`,
@@ -35,6 +40,7 @@ export function createEditTool(): Tool {
 
         content = content.replace(args.search, args.replace);
         await fs.writeFile(filePath, content, 'utf-8');
+        logger.debug('edit file succeeded', { path: filePath });
 
         return {
           success: true,
@@ -42,9 +48,11 @@ export function createEditTool(): Tool {
           replacements: 1,
         };
       } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to edit file';
+        logger.warn('edit file failed', { path: args.path, error: message });
         return {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to edit file',
+          error: message,
         };
       }
     },
