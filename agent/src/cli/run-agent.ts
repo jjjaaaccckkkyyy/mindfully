@@ -114,6 +114,7 @@ interface RunOptions {
   tools?: string;
   contextDir: string;
   session?: string;
+  concurrentTools?: boolean;
 }
 
 async function runAgent(promptArg: string | undefined, opts: RunOptions): Promise<void> {
@@ -229,6 +230,7 @@ async function runAgent(promptArg: string | undefined, opts: RunOptions): Promis
     tools: selectedTools,
     toolExecutor,
     history,
+    concurrentTools: opts.concurrentTools ?? false,
   })) {
     switch (event.type) {
       case 'token':
@@ -330,6 +332,7 @@ const program = new Command()
   .option('--context-dir <path>', 'Context directory', DEFAULT_CONTEXT_DIR)
   .option('-s, --session <id>', 'Resume a specific session by ID')
   .option('--list-sessions', 'List all sessions and exit')
+  .option('--concurrent-tools', 'Execute multiple tool calls concurrently (default: sequential)')
   // Default action: bare `run-agent [prompt]` with no subcommand
   .argument('[prompt]', 'Prompt to run (reads stdin if omitted)')
   .action(async (promptArg: string | undefined, opts: RunOptions & { listSessions?: boolean }) => {
@@ -348,6 +351,7 @@ program
   .option('-t, --tools <names>', 'Comma-separated tool names (default: all)')
   .option('--context-dir <path>', 'Context directory', DEFAULT_CONTEXT_DIR)
   .option('-s, --session <id>', 'Resume a specific session by ID')
+  .option('--concurrent-tools', 'Execute multiple tool calls concurrently (default: sequential)')
   .action(async (prompt: string | undefined, opts: RunOptions) => {
     await runAgent(prompt, opts);
   });

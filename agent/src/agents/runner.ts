@@ -47,6 +47,11 @@ export interface AgentRunOptions {
   tools: Tool[];
   toolExecutor: ToolExecutor;
   maxSteps?: number;
+  /**
+   * When true, all tool calls returned in a single LLM response are executed
+   * concurrently via Promise.all instead of sequentially. Defaults to false.
+   */
+  concurrentTools?: boolean;
   /** Pre-built message history (e.g. from ContextManager). If provided, the
    *  input string is NOT prepended as an extra user message — callers are
    *  responsible for including it in the history. */
@@ -186,43 +191,83 @@ export class AgentRunner {
         break;
       }
 
-      for (const call of assistantMessage.tool_calls || []) {
-        const tool = options.tools.find((t) => t.name === call.name);
+      const calls = assistantMessage.tool_calls ?? [];
 
-        let result: unknown;
-        let error: string | undefined;
-
-        if (!tool) {
-          error = `Tool "${call.name}" not found`;
-          logger.warn(`AgentRunner: tool not found: ${call.name}`);
-        } else {
-          logger.debug(`AgentRunner: executing tool "${call.name}"`, { args: call.args });
-          try {
-            const execResult = await options.toolExecutor(call.name, call.args);
-            result = execResult.result;
-            error = execResult.error;
-            if (error) {
-              logger.warn(`AgentRunner: tool "${call.name}" returned error: ${error}`);
+      if (options.concurrentTools && calls.length > 1) {
+        // ── Concurrent execution ─────────────────────────────────────────────
+        logger.debug(`AgentRunner.run: executing ${calls.length} tools concurrently`);
+        const settled = await Promise.all(
+          calls.map(async (call) => {
+            let result: unknown;
+            let error: string | undefined;
+            if (!options.tools.find((t) => t.name === call.name)) {
+              error = `Tool "${call.name}" not found`;
+              logger.warn(`AgentRunner: tool not found: ${call.name}`);
+            } else {
+              logger.debug(`AgentRunner: executing tool "${call.name}"`, { args: call.args });
+              try {
+                const execResult = await options.toolExecutor(call.name, call.args);
+                result = execResult.result;
+                error = execResult.error;
+                if (error) logger.warn(`AgentRunner: tool "${call.name}" returned error: ${error}`);
+              } catch (e) {
+                error = e instanceof Error ? e.message : 'Tool execution failed';
+                logger.warn(`AgentRunner: tool "${call.name}" threw: ${error}`);
+              }
             }
-          } catch (e) {
-            error = e instanceof Error ? e.message : 'Tool execution failed';
-            logger.warn(`AgentRunner: tool "${call.name}" threw: ${error}`);
-          }
+            return { call, result, error };
+          }),
+        );
+
+        for (const { call, result, error } of settled) {
+          state.toolResults.push({ toolName: call.name, result, error, toolCallId: call.id });
+          state.messages.push({
+            role: 'tool',
+            content: error || JSON.stringify(result),
+            toolName: call.name,
+            toolCallId: call.id,
+          });
         }
+      } else {
+        // ── Sequential execution (default) ───────────────────────────────────
+        for (const call of calls) {
+          const tool = options.tools.find((t) => t.name === call.name);
 
-        state.toolResults.push({
-          toolName: call.name,
-          result,
-          error,
-          toolCallId: call.id,
-        });
+          let result: unknown;
+          let error: string | undefined;
 
-        state.messages.push({
-          role: 'tool',
-          content: error || JSON.stringify(result),
-          toolName: call.name,
-          toolCallId: call.id,
-        });
+          if (!tool) {
+            error = `Tool "${call.name}" not found`;
+            logger.warn(`AgentRunner: tool not found: ${call.name}`);
+          } else {
+            logger.debug(`AgentRunner: executing tool "${call.name}"`, { args: call.args });
+            try {
+              const execResult = await options.toolExecutor(call.name, call.args);
+              result = execResult.result;
+              error = execResult.error;
+              if (error) {
+                logger.warn(`AgentRunner: tool "${call.name}" returned error: ${error}`);
+              }
+            } catch (e) {
+              error = e instanceof Error ? e.message : 'Tool execution failed';
+              logger.warn(`AgentRunner: tool "${call.name}" threw: ${error}`);
+            }
+          }
+
+          state.toolResults.push({
+            toolName: call.name,
+            result,
+            error,
+            toolCallId: call.id,
+          });
+
+          state.messages.push({
+            role: 'tool',
+            content: error || JSON.stringify(result),
+            toolName: call.name,
+            toolCallId: call.id,
+          });
+        }
       }
     }
 
@@ -338,43 +383,92 @@ export class AgentRunner {
       }
 
       // Execute tools
-      for (const call of toolCalls) {
-        const tool = options.tools.find((t) => t.name === call.name);
-
-        logger.debug(`AgentRunner.stream: tool_start "${call.name}"`, { args: call.args });
-        yield { type: 'tool_start', name: call.name, args: call.args, id: call.id };
-
-        let result: unknown;
-        let error: string | undefined;
-
-        if (!tool) {
-          error = `Tool "${call.name}" not found`;
-          logger.warn(`AgentRunner.stream: tool not found: ${call.name}`);
-        } else {
-          try {
-            const execResult = await options.toolExecutor(call.name, call.args);
-            result = execResult.result;
-            error = execResult.error;
-            if (error) {
-              logger.warn(`AgentRunner.stream: tool "${call.name}" returned error`, { error });
-            } else {
-              const preview = truncate(JSON.stringify(result), 200);
-              logger.debug(`AgentRunner.stream: tool_result "${call.name}"`, { result: preview });
-            }
-          } catch (e) {
-            error = e instanceof Error ? e.message : 'Tool execution failed';
-            logger.warn(`AgentRunner.stream: tool "${call.name}" threw`, { error });
-          }
+      if (options.concurrentTools && toolCalls.length > 1) {
+        // ── Concurrent execution ─────────────────────────────────────────────
+        // Emit all tool_start events up-front, then await all concurrently,
+        // then emit tool_result events in the original call order.
+        logger.debug(`AgentRunner.stream: executing ${toolCalls.length} tools concurrently`);
+        for (const call of toolCalls) {
+          logger.debug(`AgentRunner.stream: tool_start "${call.name}"`, { args: call.args });
+          yield { type: 'tool_start', name: call.name, args: call.args, id: call.id };
         }
 
-        yield { type: 'tool_result', name: call.name, result, error, id: call.id };
+        const settled = await Promise.all(
+          toolCalls.map(async (call) => {
+            let result: unknown;
+            let error: string | undefined;
+            if (!options.tools.find((t) => t.name === call.name)) {
+              error = `Tool "${call.name}" not found`;
+              logger.warn(`AgentRunner.stream: tool not found: ${call.name}`);
+            } else {
+              try {
+                const execResult = await options.toolExecutor(call.name, call.args);
+                result = execResult.result;
+                error = execResult.error;
+                if (error) {
+                  logger.warn(`AgentRunner.stream: tool "${call.name}" returned error`, { error });
+                } else {
+                  const preview = truncate(JSON.stringify(result), 200);
+                  logger.debug(`AgentRunner.stream: tool_result "${call.name}"`, { result: preview });
+                }
+              } catch (e) {
+                error = e instanceof Error ? e.message : 'Tool execution failed';
+                logger.warn(`AgentRunner.stream: tool "${call.name}" threw`, { error });
+              }
+            }
+            return { call, result, error };
+          }),
+        );
 
-        messages.push({
-          role: 'tool',
-          content: error || JSON.stringify(result),
-          toolName: call.name,
-          toolCallId: call.id,
-        });
+        for (const { call, result, error } of settled) {
+          yield { type: 'tool_result', name: call.name, result, error, id: call.id };
+          messages.push({
+            role: 'tool',
+            content: error || JSON.stringify(result),
+            toolName: call.name,
+            toolCallId: call.id,
+          });
+        }
+      } else {
+        // ── Sequential execution (default) ───────────────────────────────────
+        for (const call of toolCalls) {
+          const tool = options.tools.find((t) => t.name === call.name);
+
+          logger.debug(`AgentRunner.stream: tool_start "${call.name}"`, { args: call.args });
+          yield { type: 'tool_start', name: call.name, args: call.args, id: call.id };
+
+          let result: unknown;
+          let error: string | undefined;
+
+          if (!tool) {
+            error = `Tool "${call.name}" not found`;
+            logger.warn(`AgentRunner.stream: tool not found: ${call.name}`);
+          } else {
+            try {
+              const execResult = await options.toolExecutor(call.name, call.args);
+              result = execResult.result;
+              error = execResult.error;
+              if (error) {
+                logger.warn(`AgentRunner.stream: tool "${call.name}" returned error`, { error });
+              } else {
+                const preview = truncate(JSON.stringify(result), 200);
+                logger.debug(`AgentRunner.stream: tool_result "${call.name}"`, { result: preview });
+              }
+            } catch (e) {
+              error = e instanceof Error ? e.message : 'Tool execution failed';
+              logger.warn(`AgentRunner.stream: tool "${call.name}" threw`, { error });
+            }
+          }
+
+          yield { type: 'tool_result', name: call.name, result, error, id: call.id };
+
+          messages.push({
+            role: 'tool',
+            content: error || JSON.stringify(result),
+            toolName: call.name,
+            toolCallId: call.id,
+          });
+        }
       }
     }
 

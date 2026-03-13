@@ -243,8 +243,238 @@ describe('AgentRunner integration', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // stream() tests — new token-level StreamEvent API
+  // concurrentTools — run() and stream()
   // ---------------------------------------------------------------------------
+
+  describe('run() — concurrentTools', () => {
+    it('executes two tool calls in the same turn concurrently and produces the same result as sequential', async () => {
+      const twoToolCalls: AIMessage = {
+        content: '',
+        tool_calls: [
+          { name: 'alpha', args: '{}', id: 'c-a' },
+          { name: 'beta', args: '{}', id: 'c-b' },
+        ],
+      };
+      const final: AIMessage = { content: 'Both done.' };
+
+      const runner = makeRunner([twoToolCalls, final]);
+      const alphaTool = makeTool('alpha', 'result-alpha');
+      const betaTool = makeTool('beta', 'result-beta');
+
+      const callOrder: string[] = [];
+      const executor: ToolExecutor = async (toolName) => {
+        callOrder.push(toolName);
+        if (toolName === 'alpha') return { result: 'result-alpha' };
+        if (toolName === 'beta') return { result: 'result-beta' };
+        return { result: null };
+      };
+
+      const state = await runner.run({
+        input: 'Run both',
+        tools: [alphaTool, betaTool],
+        toolExecutor: executor,
+        concurrentTools: true,
+      });
+
+      // Both tool results present
+      expect(state.toolResults).toHaveLength(2);
+      expect(state.toolResults.find((r) => r.toolName === 'alpha')?.result).toBe('result-alpha');
+      expect(state.toolResults.find((r) => r.toolName === 'beta')?.result).toBe('result-beta');
+
+      // Messages: user → assistant (2 tool_calls) → tool alpha → tool beta → assistant final
+      const roles = state.messages.map((m) => m.role);
+      expect(roles).toEqual(['user', 'assistant', 'tool', 'tool', 'assistant']);
+      expect(state.messages[state.messages.length - 1].content).toBe('Both done.');
+
+      // Both tools were called
+      expect(callOrder).toContain('alpha');
+      expect(callOrder).toContain('beta');
+    });
+
+    it('captures errors from individual concurrent tool calls independently', async () => {
+      const twoToolCalls: AIMessage = {
+        content: '',
+        tool_calls: [
+          { name: 'good', args: '{}', id: 'c-good' },
+          { name: 'bad', args: '{}', id: 'c-bad' },
+        ],
+      };
+      const final: AIMessage = { content: 'Handled.' };
+
+      const runner = makeRunner([twoToolCalls, final]);
+      const goodTool = makeTool('good', 'ok');
+      const badTool = makeTool('bad', null);
+
+      const executor: ToolExecutor = async (toolName) => {
+        if (toolName === 'good') return { result: 'ok' };
+        throw new Error('bad tool exploded');
+      };
+
+      const state = await runner.run({
+        input: 'Mix',
+        tools: [goodTool, badTool],
+        toolExecutor: executor,
+        concurrentTools: true,
+      });
+
+      const goodResult = state.toolResults.find((r) => r.toolName === 'good');
+      const badResult = state.toolResults.find((r) => r.toolName === 'bad');
+
+      expect(goodResult?.result).toBe('ok');
+      expect(goodResult?.error).toBeUndefined();
+      expect(badResult?.error).toBe('bad tool exploded');
+    });
+
+    it('falls back to sequential when only one tool call is present', async () => {
+      const oneToolCall: AIMessage = {
+        content: '',
+        tool_calls: [{ name: 'solo', args: '{}', id: 'c-solo' }],
+      };
+      const final: AIMessage = { content: 'Solo done.' };
+
+      const runner = makeRunner([oneToolCall, final]);
+      const soloTool = makeTool('solo', 'solo-result');
+      const executor: ToolExecutor = async () => ({ result: 'solo-result' });
+
+      const state = await runner.run({
+        input: 'One tool',
+        tools: [soloTool],
+        toolExecutor: executor,
+        concurrentTools: true,
+      });
+
+      expect(state.toolResults).toHaveLength(1);
+      expect(state.toolResults[0].result).toBe('solo-result');
+    });
+  });
+
+  describe('stream() — concurrentTools', () => {
+    it('emits all tool_start events before any tool_result events when concurrent', async () => {
+      const twoToolCalls: AIMessage = {
+        content: '',
+        tool_calls: [
+          { name: 'fast', args: '{}', id: 'c-fast' },
+          { name: 'slow', args: '{}', id: 'c-slow' },
+        ],
+      };
+      const final: AIMessage = { content: 'Both streamed.' };
+
+      const runner = makeRunner([twoToolCalls, final]);
+      const fastTool = makeTool('fast', 'fast-result');
+      const slowTool = makeTool('slow', 'slow-result');
+      const executor: ToolExecutor = async (toolName) => {
+        if (toolName === 'fast') return { result: 'fast-result' };
+        // Simulate a slower tool with a tiny delay
+        await new Promise((r) => setTimeout(r, 10));
+        return { result: 'slow-result' };
+      };
+
+      const events = await collectStream(runner, {
+        input: 'Run both',
+        tools: [fastTool, slowTool],
+        toolExecutor: executor,
+        concurrentTools: true,
+      });
+
+      const toolEvents = events.filter(
+        (e) => e.type === 'tool_start' || e.type === 'tool_result',
+      );
+
+      // First two events must both be tool_start
+      expect(toolEvents[0].type).toBe('tool_start');
+      expect(toolEvents[1].type).toBe('tool_start');
+      // Next two must both be tool_result
+      expect(toolEvents[2].type).toBe('tool_result');
+      expect(toolEvents[3].type).toBe('tool_result');
+    });
+
+    it('tool_result events are in the same order as tool_start events (call order)', async () => {
+      const twoToolCalls: AIMessage = {
+        content: '',
+        tool_calls: [
+          { name: 'first', args: '{}', id: 'c-first' },
+          { name: 'second', args: '{}', id: 'c-second' },
+        ],
+      };
+      const final: AIMessage = { content: 'Ordered.' };
+
+      const runner = makeRunner([twoToolCalls, final]);
+      const firstTool = makeTool('first', 'r1');
+      const secondTool = makeTool('second', 'r2');
+      const executor: ToolExecutor = async (toolName) => {
+        if (toolName === 'first') return { result: 'r1' };
+        return { result: 'r2' };
+      };
+
+      const events = await collectStream(runner, {
+        input: 'Order test',
+        tools: [firstTool, secondTool],
+        toolExecutor: executor,
+        concurrentTools: true,
+      });
+
+      const starts = events.filter((e) => e.type === 'tool_start');
+      const results = events.filter((e) => e.type === 'tool_result');
+
+      expect(starts).toHaveLength(2);
+      expect(results).toHaveLength(2);
+
+      // starts: first, second
+      if (starts[0].type === 'tool_start') expect(starts[0].name).toBe('first');
+      if (starts[1].type === 'tool_start') expect(starts[1].name).toBe('second');
+
+      // results: same order — first, second
+      if (results[0].type === 'tool_result') {
+        expect(results[0].name).toBe('first');
+        expect(results[0].result).toBe('r1');
+      }
+      if (results[1].type === 'tool_result') {
+        expect(results[1].name).toBe('second');
+        expect(results[1].result).toBe('r2');
+      }
+    });
+
+    it('concurrent and sequential produce the same final done.messages', async () => {
+      const twoToolCalls: AIMessage = {
+        content: '',
+        tool_calls: [
+          { name: 'ta', args: '{}', id: 'id-a' },
+          { name: 'tb', args: '{}', id: 'id-b' },
+        ],
+      };
+      const final: AIMessage = { content: 'Same result.' };
+
+      const executor: ToolExecutor = async (toolName) => ({
+        result: toolName === 'ta' ? 'ra' : 'rb',
+      });
+      const tools = [makeTool('ta', 'ra'), makeTool('tb', 'rb')];
+
+      const runnerSeq = makeRunner([{ ...twoToolCalls, tool_calls: [...(twoToolCalls.tool_calls ?? [])] }, { ...final }]);
+      const runnerCon = makeRunner([{ ...twoToolCalls, tool_calls: [...(twoToolCalls.tool_calls ?? [])] }, { ...final }]);
+
+      const seqEvents = await collectStream(runnerSeq, { input: 'x', tools, toolExecutor: executor, concurrentTools: false });
+      const conEvents = await collectStream(runnerCon, { input: 'x', tools, toolExecutor: executor, concurrentTools: true });
+
+      const seqDone = seqEvents.find((e) => e.type === 'done');
+      const conDone = conEvents.find((e) => e.type === 'done');
+
+      expect(seqDone?.type).toBe('done');
+      expect(conDone?.type).toBe('done');
+
+      if (seqDone?.type === 'done' && conDone?.type === 'done') {
+        // Same number of messages
+        expect(conDone.messages.length).toBe(seqDone.messages.length);
+        // Same roles in same order
+        expect(conDone.messages.map((m) => m.role)).toEqual(seqDone.messages.map((m) => m.role));
+        // Same tool result contents
+        const seqToolMsgs = seqDone.messages.filter((m) => m.role === 'tool');
+        const conToolMsgs = conDone.messages.filter((m) => m.role === 'tool');
+        expect(conToolMsgs.map((m) => m.toolName)).toEqual(seqToolMsgs.map((m) => m.toolName));
+        expect(conToolMsgs.map((m) => m.content)).toEqual(seqToolMsgs.map((m) => m.content));
+      }
+    });
+  });
+
 
   describe('stream() — token-level StreamEvent API', () => {
     it('yields token event then done event for simple text reply', async () => {
