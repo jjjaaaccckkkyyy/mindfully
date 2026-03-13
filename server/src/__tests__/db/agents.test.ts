@@ -133,6 +133,24 @@ describe('AgentsRepository', () => {
       expect(result).not.toBeNull();
     });
 
+    it('updates provider_override and provider_model', async () => {
+      const row = makeRow({ provider_override: 'openai', provider_model: 'gpt-4o' });
+      mockDb.query.mockResolvedValueOnce({ rows: [row], rowCount: 1 } as never);
+      const result = await repo.update('agent-1', {
+        provider_override: 'openai',
+        provider_model: 'gpt-4o',
+      });
+      expect(result?.provider_override).toBe('openai');
+      expect(result?.provider_model).toBe('gpt-4o');
+
+      // Verify the SQL includes both columns
+      const [sql, params] = mockDb.query.mock.calls[0] as unknown as [string, unknown[]];
+      expect(sql).toContain('provider_override');
+      expect(sql).toContain('provider_model');
+      expect(params).toContain('openai');
+      expect(params).toContain('gpt-4o');
+    });
+
     it('returns null when update finds no row', async () => {
       mockDb.query.mockResolvedValueOnce({ rows: [], rowCount: 0 } as never);
       const result = await repo.update('agent-1', { name: 'New' });

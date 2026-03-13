@@ -117,6 +117,14 @@ export class AgentsRepository {
       fields.push(`temperature = $${paramIndex++}`);
       values.push(input.temperature);
     }
+    if (input.provider_override !== undefined) {
+      fields.push(`provider_override = $${paramIndex++}`);
+      values.push(input.provider_override);
+    }
+    if (input.provider_model !== undefined) {
+      fields.push(`provider_model = $${paramIndex++}`);
+      values.push(input.provider_model);
+    }
 
     if (fields.length === 0) {
       return this.findById(id);

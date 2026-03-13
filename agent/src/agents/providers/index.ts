@@ -10,8 +10,24 @@ import { createLogger } from 'core';
 
 const logger = createLogger('agent:providers');
 
+/**
+ * A single provider entry in ProviderFactoryConfig.providers.
+ *
+ * - String form: `'opencode-zen'` — uses top-level model/temperature/maxTokens.
+ * - Object form: `{ name: 'openai', model: 'gpt-4o' }` — per-provider overrides
+ *   take precedence over the top-level config for that specific provider.
+ */
+export type ProviderEntry =
+  | string
+  | {
+      name: string;
+      model?: string;
+      temperature?: number;
+      maxTokens?: number;
+    };
+
 export interface ProviderFactoryConfig {
-  providers?: string[];
+  providers?: ProviderEntry[];
   model?: string;
   temperature?: number;
   maxTokens?: number;
@@ -40,13 +56,17 @@ export function createProvider(name: string, config?: {
 }
 
 export function createProviderChain(config: ProviderFactoryConfig = {}): ProviderChain {
-  const providerNames = config.providers || getDefaultProviders();
-  const model = config.model || process.env.LLM_MODEL || DEFAULT_MODEL;
-  const temperature = config.temperature ?? parseFloat(process.env.LLM_TEMPERATURE || '0.7');
-  const maxTokens = config.maxTokens ?? parseInt(process.env.LLM_MAX_TOKENS || '4096', 10);
+  const providerEntries = config.providers || getDefaultProviders();
+  const defaultModel = config.model || process.env.LLM_MODEL || DEFAULT_MODEL;
+  const defaultTemperature = config.temperature ?? parseFloat(process.env.LLM_TEMPERATURE || '0.7');
+  const defaultMaxTokens = config.maxTokens ?? parseInt(process.env.LLM_MAX_TOKENS || '4096', 10);
 
-  const providers = providerNames
-    .map((name) => {
+  const providers = providerEntries
+    .map((entry) => {
+      const name = typeof entry === 'string' ? entry : entry.name;
+      const model = (typeof entry === 'object' && entry.model) ? entry.model : defaultModel;
+      const temperature = (typeof entry === 'object' && entry.temperature !== undefined) ? entry.temperature : defaultTemperature;
+      const maxTokens = (typeof entry === 'object' && entry.maxTokens !== undefined) ? entry.maxTokens : defaultMaxTokens;
       try {
         return createProvider(name, { model, temperature, maxTokens });
       } catch (error) {
@@ -63,7 +83,7 @@ export function createProviderChain(config: ProviderFactoryConfig = {}): Provide
   return new ProviderChain(providers, config.fallback);
 }
 
-function getDefaultProviders(): string[] {
+function getDefaultProviders(): ProviderEntry[] {
   const envProviders = process.env.LLM_PROVIDERS;
   if (envProviders) {
     return envProviders.split(',').map((p) => p.trim()).filter(Boolean);

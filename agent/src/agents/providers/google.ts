@@ -32,10 +32,10 @@ export class GoogleProvider implements LLMProvider {
     });
   }
 
-  private toLangChainMessages(messages: Message[]): Array<{ type: string; data: { role: string; content: string } }> {
+  private toLangChainMessages(messages: Message[]): Array<{ role: string; content: string }> {
     return messages.map((m) => ({
-      type: 'human',
-      data: { role: m.role, content: m.content },
+      role: m.role,
+      content: m.content,
     }));
   }
 

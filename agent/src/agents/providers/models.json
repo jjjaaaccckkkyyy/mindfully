@@ -1,0 +1,423 @@
+{
+  "_meta": {
+    "description": "Provider/model availability and pricing mapping",
+    "source": "Official provider pricing pages",
+    "updated": "2026-03-13",
+    "pricing_unit": "USD per 1M tokens"
+  },
+  "providers": {
+    "openai": {
+      "name": "OpenAI",
+      "baseURL": "https://api.openai.com/v1",
+      "authEnv": "OPENAI_API_KEY",
+      "streamUsage": true,
+      "models": {
+        "gpt-5.4": {
+          "displayName": "GPT-5.4",
+          "description": "Most capable model for professional work",
+          "status": "ga",
+          "contextWindow": 128000,
+          "pricing": {
+            "input": 2.5,
+            "output": 15.0,
+            "cachedInput": 0.25
+          },
+          "capabilities": ["chat", "tools", "streaming", "vision"]
+        },
+        "gpt-5-mini": {
+          "displayName": "GPT-5 mini",
+          "description": "Faster, cheaper version of GPT-5 for well-defined tasks",
+          "status": "ga",
+          "contextWindow": 128000,
+          "pricing": {
+            "input": 0.25,
+            "output": 2.0,
+            "cachedInput": 0.025
+          },
+          "capabilities": ["chat", "tools", "streaming"]
+        },
+        "gpt-4.1": {
+          "displayName": "GPT-4.1",
+          "description": "Latest GPT-4 generation with improved instruction following",
+          "status": "ga",
+          "contextWindow": 1047576,
+          "pricing": {
+            "input": 2.0,
+            "output": 8.0,
+            "cachedInput": 0.5
+          },
+          "capabilities": ["chat", "tools", "streaming", "vision"]
+        },
+        "gpt-4.1-mini": {
+          "displayName": "GPT-4.1 mini",
+          "description": "Compact, fast GPT-4.1 variant",
+          "status": "ga",
+          "contextWindow": 1047576,
+          "pricing": {
+            "input": 0.4,
+            "output": 1.6,
+            "cachedInput": 0.1
+          },
+          "capabilities": ["chat", "tools", "streaming"]
+        },
+        "gpt-4.1-nano": {
+          "displayName": "GPT-4.1 nano",
+          "description": "Smallest, most cost-efficient GPT-4.1 variant",
+          "status": "ga",
+          "contextWindow": 1047576,
+          "pricing": {
+            "input": 0.1,
+            "output": 0.4,
+            "cachedInput": 0.025
+          },
+          "capabilities": ["chat", "tools", "streaming"]
+        },
+        "gpt-4o": {
+          "displayName": "GPT-4o",
+          "description": "Multimodal flagship model",
+          "status": "ga",
+          "contextWindow": 128000,
+          "pricing": {
+            "input": 2.5,
+            "output": 10.0,
+            "cachedInput": 1.25
+          },
+          "capabilities": ["chat", "tools", "streaming", "vision"]
+        },
+        "gpt-4o-mini": {
+          "displayName": "GPT-4o mini",
+          "description": "Fast, cost-efficient smaller model",
+          "status": "ga",
+          "contextWindow": 128000,
+          "pricing": {
+            "input": 0.15,
+            "output": 0.6,
+            "cachedInput": 0.075
+          },
+          "capabilities": ["chat", "tools", "streaming"]
+        },
+        "gpt-4-turbo": {
+          "displayName": "GPT-4 Turbo",
+          "description": "Previous generation high-capability model",
+          "status": "legacy",
+          "contextWindow": 128000,
+          "pricing": {
+            "input": 10.0,
+            "output": 30.0
+          },
+          "capabilities": ["chat", "tools", "streaming", "vision"]
+        },
+        "gpt-3.5-turbo": {
+          "displayName": "GPT-3.5 Turbo",
+          "description": "Fast, inexpensive model for simple tasks",
+          "status": "legacy",
+          "contextWindow": 16385,
+          "pricing": {
+            "input": 0.5,
+            "output": 1.5
+          },
+          "capabilities": ["chat", "tools", "streaming"]
+        }
+      }
+    },
+    "anthropic": {
+      "name": "Anthropic",
+      "baseURL": "https://api.anthropic.com/v1",
+      "authEnv": "ANTHROPIC_API_KEY",
+      "streamUsage": false,
+      "models": {
+        "claude-opus-4-6-20251101": {
+          "displayName": "Claude Opus 4.6",
+          "description": "Most intelligent model for building agents and coding",
+          "status": "ga",
+          "contextWindow": 200000,
+          "pricing": {
+            "input": 5.0,
+            "output": 25.0,
+            "inputAbove200k": 10.0,
+            "outputAbove200k": 37.5,
+            "cacheWrite": 6.25,
+            "cacheRead": 0.5
+          },
+          "capabilities": ["chat", "tools", "streaming", "vision", "extended-thinking"]
+        },
+        "claude-sonnet-4-6-20251101": {
+          "displayName": "Claude Sonnet 4.6",
+          "description": "Optimal balance of intelligence, cost, and speed",
+          "status": "ga",
+          "contextWindow": 200000,
+          "pricing": {
+            "input": 3.0,
+            "output": 15.0,
+            "inputAbove200k": 6.0,
+            "outputAbove200k": 22.5,
+            "cacheWrite": 3.75,
+            "cacheRead": 0.3
+          },
+          "capabilities": ["chat", "tools", "streaming", "vision"]
+        },
+        "claude-haiku-4-5-20251101": {
+          "displayName": "Claude Haiku 4.5",
+          "description": "Fastest, most cost-efficient model",
+          "status": "ga",
+          "contextWindow": 200000,
+          "pricing": {
+            "input": 1.0,
+            "output": 5.0,
+            "cacheWrite": 1.25,
+            "cacheRead": 0.1
+          },
+          "capabilities": ["chat", "tools", "streaming", "vision"]
+        },
+        "claude-opus-4-5-20241022": {
+          "displayName": "Claude Opus 4.5",
+          "description": "Previous generation Opus",
+          "status": "legacy",
+          "contextWindow": 200000,
+          "pricing": {
+            "input": 5.0,
+            "output": 25.0,
+            "cacheWrite": 6.25,
+            "cacheRead": 0.5
+          },
+          "capabilities": ["chat", "tools", "streaming", "vision"]
+        },
+        "claude-opus-4-1-20241022": {
+          "displayName": "Claude Opus 4.1",
+          "description": "Previous generation Opus",
+          "status": "legacy",
+          "contextWindow": 200000,
+          "pricing": {
+            "input": 15.0,
+            "output": 75.0,
+            "cacheWrite": 18.75,
+            "cacheRead": 1.5
+          },
+          "capabilities": ["chat", "tools", "streaming", "vision"]
+        },
+        "claude-sonnet-4-20241022": {
+          "displayName": "Claude Sonnet 4",
+          "description": "Previous generation Sonnet",
+          "status": "legacy",
+          "contextWindow": 200000,
+          "pricing": {
+            "input": 3.0,
+            "output": 15.0,
+            "cacheWrite": 3.75,
+            "cacheRead": 0.3
+          },
+          "capabilities": ["chat", "tools", "streaming", "vision"]
+        },
+        "claude-haiku-3-20240307": {
+          "displayName": "Claude Haiku 3",
+          "description": "Previous generation Haiku",
+          "status": "legacy",
+          "contextWindow": 200000,
+          "pricing": {
+            "input": 0.25,
+            "output": 1.25,
+            "cacheWrite": 0.3,
+            "cacheRead": 0.03
+          },
+          "capabilities": ["chat", "tools", "streaming"]
+        }
+      }
+    },
+    "opencode-zen": {
+      "name": "OpenCode Zen",
+      "baseURL": "https://opencode.ai/zen/v1",
+      "authEnv": "OPENCODE_ZEN_API_KEY",
+      "streamUsage": true,
+      "note": "OpenAI-compatible proxy. Routes to various underlying models. Pricing is per-model and may vary.",
+      "models": {
+        "gpt-5.1-codex": {
+          "displayName": "GPT-5.1 Codex",
+          "description": "Default Zen codex model",
+          "status": "ga",
+          "pricing": { "input": 3.0, "output": 15.0 },
+          "capabilities": ["chat", "tools", "streaming"]
+        },
+        "gpt-5.1-codex-mini": {
+          "displayName": "GPT-5.1 Codex Mini",
+          "description": "Smaller, faster Codex variant",
+          "status": "ga",
+          "pricing": { "input": 3.0, "output": 15.0 },
+          "capabilities": ["chat", "tools", "streaming"]
+        },
+        "gpt-5.1-codex-max": {
+          "displayName": "GPT-5.1 Codex Max",
+          "description": "Highest-capability Codex variant",
+          "status": "ga",
+          "pricing": { "input": 3.0, "output": 15.0 },
+          "capabilities": ["chat", "tools", "streaming"]
+        },
+        "gpt-5.3-codex": {
+          "displayName": "GPT-5.3 Codex",
+          "description": "Latest Codex generation",
+          "status": "ga",
+          "pricing": { "input": 3.0, "output": 15.0 },
+          "capabilities": ["chat", "tools", "streaming"]
+        },
+        "gpt-5.4-pro": {
+          "displayName": "GPT-5.4 Pro",
+          "description": "Pro variant of GPT-5.4 via Zen",
+          "status": "ga",
+          "pricing": { "input": 3.0, "output": 15.0 },
+          "capabilities": ["chat", "tools", "streaming"]
+        },
+        "glm-5": {
+          "displayName": "GLM-5",
+          "description": "Zhipu AI GLM latest generation",
+          "status": "ga",
+          "pricing": { "input": 3.0, "output": 15.0 },
+          "capabilities": ["chat", "tools", "streaming"]
+        },
+        "glm-4.7": {
+          "displayName": "GLM-4.7",
+          "description": "Zhipu AI GLM-4.7",
+          "status": "ga",
+          "pricing": { "input": 3.0, "output": 15.0 },
+          "capabilities": ["chat", "tools", "streaming"]
+        },
+        "glm-4.6": {
+          "displayName": "GLM-4.6",
+          "description": "Zhipu AI GLM-4.6",
+          "status": "ga",
+          "pricing": { "input": 3.0, "output": 15.0 },
+          "capabilities": ["chat", "tools", "streaming"]
+        },
+        "claude-opus-4-6": {
+          "displayName": "Claude Opus 4.6 (via Zen)",
+          "description": "Anthropic Claude Opus 4.6 routed via Zen",
+          "status": "ga",
+          "pricing": { "input": 3.0, "output": 15.0 },
+          "capabilities": ["chat", "tools", "streaming"]
+        },
+        "claude-sonnet-4-6": {
+          "displayName": "Claude Sonnet 4.6 (via Zen)",
+          "description": "Anthropic Claude Sonnet 4.6 routed via Zen",
+          "status": "ga",
+          "pricing": { "input": 3.0, "output": 15.0 },
+          "capabilities": ["chat", "tools", "streaming"]
+        },
+        "claude-3-5-haiku": {
+          "displayName": "Claude 3.5 Haiku (via Zen)",
+          "description": "Anthropic Claude 3.5 Haiku routed via Zen",
+          "status": "ga",
+          "pricing": { "input": 3.0, "output": 15.0 },
+          "capabilities": ["chat", "tools", "streaming"]
+        },
+        "gemini-3-pro": {
+          "displayName": "Gemini 3 Pro (via Zen)",
+          "description": "Google Gemini 3 Pro routed via Zen",
+          "status": "ga",
+          "pricing": { "input": 3.0, "output": 15.0 },
+          "capabilities": ["chat", "tools", "streaming"]
+        },
+        "gemini-3-flash": {
+          "displayName": "Gemini 3 Flash (via Zen)",
+          "description": "Google Gemini 3 Flash routed via Zen",
+          "status": "ga",
+          "pricing": { "input": 3.0, "output": 15.0 },
+          "capabilities": ["chat", "tools", "streaming"]
+        },
+        "kimi-k2": {
+          "displayName": "Kimi K2 (via Zen)",
+          "description": "Moonshot Kimi K2 routed via Zen",
+          "status": "ga",
+          "pricing": { "input": 3.0, "output": 15.0 },
+          "capabilities": ["chat", "tools", "streaming"]
+        },
+        "minimax-m2.5": {
+          "displayName": "MiniMax M2.5 (via Zen)",
+          "description": "MiniMax M2.5 routed via Zen",
+          "status": "ga",
+          "pricing": { "input": 3.0, "output": 15.0 },
+          "capabilities": ["chat", "tools", "streaming"]
+        }
+      }
+    },
+    "ollama": {
+      "name": "Ollama",
+      "baseURL": "http://localhost:11434",
+      "authEnv": null,
+      "streamUsage": false,
+      "note": "Local inference — no API key required. Models must be pulled locally via `ollama pull <model>`.",
+      "models": {
+        "llama3.2": {
+          "displayName": "Llama 3.2",
+          "description": "Meta Llama 3.2 (3B/11B/90B variants available)",
+          "status": "ga",
+          "pricing": { "input": 0.0, "output": 0.0 },
+          "capabilities": ["chat", "streaming"]
+        },
+        "llama3.1": {
+          "displayName": "Llama 3.1",
+          "description": "Meta Llama 3.1 (8B/70B/405B variants)",
+          "status": "ga",
+          "pricing": { "input": 0.0, "output": 0.0 },
+          "capabilities": ["chat", "streaming"]
+        },
+        "codellama": {
+          "displayName": "Code Llama",
+          "description": "Meta Code Llama — code-specialized",
+          "status": "ga",
+          "pricing": { "input": 0.0, "output": 0.0 },
+          "capabilities": ["chat", "streaming"]
+        },
+        "mistral": {
+          "displayName": "Mistral 7B",
+          "description": "Mistral AI 7B Instruct",
+          "status": "ga",
+          "pricing": { "input": 0.0, "output": 0.0 },
+          "capabilities": ["chat", "streaming"]
+        }
+      }
+    },
+    "google": {
+      "name": "Google AI",
+      "baseURL": "https://generativelanguage.googleapis.com/v1beta",
+      "authEnv": "GOOGLE_API_KEY",
+      "streamUsage": false,
+      "note": "Gemini models via Google AI Studio / Generative Language API.",
+      "models": {
+        "gemini-2.0-flash-exp": {
+          "displayName": "Gemini 2.0 Flash (Experimental)",
+          "description": "Fast multimodal model with native tool use",
+          "status": "experimental",
+          "contextWindow": 1048576,
+          "pricing": {
+            "input": 0.0,
+            "output": 0.0,
+            "note": "Free during experimental period; standard pricing TBD"
+          },
+          "capabilities": ["chat", "tools", "streaming", "vision"]
+        },
+        "gemini-1.5-pro": {
+          "displayName": "Gemini 1.5 Pro",
+          "description": "Best performing Gemini 1.5 model for complex tasks",
+          "status": "ga",
+          "contextWindow": 2000000,
+          "pricing": {
+            "input": 1.25,
+            "output": 5.0,
+            "note": "Prompts ≤128K tokens: $1.25/$5.00. Prompts >128K: $2.50/$10.00"
+          },
+          "capabilities": ["chat", "tools", "streaming", "vision"]
+        },
+        "gemini-1.5-flash": {
+          "displayName": "Gemini 1.5 Flash",
+          "description": "Fast and versatile Gemini 1.5 model",
+          "status": "ga",
+          "contextWindow": 1000000,
+          "pricing": {
+            "input": 0.075,
+            "output": 0.3,
+            "note": "Prompts ≤128K tokens: $0.075/$0.30. Prompts >128K: $0.15/$0.60"
+          },
+          "capabilities": ["chat", "tools", "streaming", "vision"]
+        }
+      }
+    }
+  }
+}

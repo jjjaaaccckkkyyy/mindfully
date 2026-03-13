@@ -1,6 +1,6 @@
 import express from 'express';
 import type { Request, Response, Router } from 'express';
-import { AgentRunner, buildSystemPrompt } from 'agent';
+import { AgentRunner, buildSystemPrompt, createProviderChain } from 'agent';
 import { ContextManager, type StoredMessage } from 'core';
 import { verifyIdToken } from '../auth/utils/id-token.js';
 import { agentsRepository } from '../db/repositories/agents.js';
@@ -34,15 +34,18 @@ async function generateTitle(
     return;
   }
 
+  const titleModel = process.env['SUMMARY_MODEL'] ?? 'glm-5';
+  const titleBaseUrl = process.env['SUMMARY_BASE_URL'] ?? 'https://opencode.ai/zen/v1';
+
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(`${titleBaseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${openaiApiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: titleModel,
         messages: [
           {
             role: 'system',
@@ -154,7 +157,10 @@ router.post('/agent/:agentId/run', async (req: Request, res: Response) => {
       workspaceDir: process.cwd(),
       agentSystemPrompt: agent.system_prompt ?? undefined,
     });
-    const contextManager = new ContextManager({ systemPrompt });
+    const contextManager = new ContextManager({
+      systemPrompt,
+      summaryBaseUrl: process.env['SUMMARY_BASE_URL'],
+    });
     const allStoredMessages = (await sessionMessagesRepository.findBySessionId(sessionId, 1000)).items;
     const sessionRecord = {
       id: session.id,
@@ -183,8 +189,30 @@ router.post('/agent/:agentId/run', async (req: Request, res: Response) => {
     });
     await executionsRepository.update(execution.id, { status: 'running' });
 
+    // --- Build per-agent provider chain ---
+    // Use provider_override (e.g. 'openai') if set, else fall back to env-driven default.
+    // provider_model/agent.model override the model within that provider.
+    const providerChain = createProviderChain({
+      ...(agent.provider_override
+        ? {
+            providers: [
+              {
+                name: agent.provider_override,
+                model: agent.provider_model ?? agent.model ?? undefined,
+                temperature: agent.temperature ?? undefined,
+                maxTokens: agent.max_tokens ?? undefined,
+              },
+            ],
+          }
+        : {
+            model: agent.model ?? undefined,
+            temperature: agent.temperature ?? undefined,
+            maxTokens: agent.max_tokens ?? undefined,
+          }),
+    });
+
     // --- Run agent stream ---
-    const runner = new AgentRunner();
+    const runner = new AgentRunner({ providerChain });
     const newMessages: Array<{
       role: 'assistant' | 'tool';
       content: string;

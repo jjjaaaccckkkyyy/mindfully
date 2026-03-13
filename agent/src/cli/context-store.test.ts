@@ -425,5 +425,74 @@ describe('CliContextStore', () => {
 
       delete process.env['OPENAI_API_KEY'];
     });
+    it('uses the provided baseUrl for the API call', async () => {
+      const meta = await store.createSession();
+      await store.appendMessages(meta.id, makeMessages(2));
+
+      process.env['OPENAI_API_KEY'] = 'test-key';
+
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'Summary via custom URL.' } }] }),
+      } as Response);
+
+      await store.summarise(meta.id, 'gpt-4o-mini', 'https://custom.example.com/v1');
+
+      const [url] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('https://custom.example.com/v1/chat/completions');
+
+      delete process.env['OPENAI_API_KEY'];
+    });
+
+    it('falls back to OPENCODE_ZEN_BASE_URL env when no baseUrl arg given', async () => {
+      const meta = await store.createSession();
+      await store.appendMessages(meta.id, makeMessages(2));
+
+      process.env['OPENAI_API_KEY'] = 'test-key';
+      process.env['OPENCODE_ZEN_BASE_URL'] = 'https://zen.example.com/v1';
+
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'Zen summary.' } }] }),
+      } as Response);
+
+      await store.summarise(meta.id);
+
+      const [url] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('https://zen.example.com/v1/chat/completions');
+
+      delete process.env['OPENAI_API_KEY'];
+      delete process.env['OPENCODE_ZEN_BASE_URL'];
+    });
+  });
+
+  // ─── buildHistory with summaryModel / summaryBaseUrl ─────────────────────
+
+  describe('buildHistory — summary options forwarding', () => {
+    it('passes summaryModel and summaryBaseUrl through to summarise()', async () => {
+      const meta = await store.createSession();
+      await store.appendMessages(meta.id, makeMessages(3));
+
+      const summariseSpy = vi.spyOn(store, 'summarise').mockResolvedValue('forwarded summary');
+
+      await store.buildHistory(meta.id, 'sys', 20, 'gpt-4o', 'https://custom.example.com/v1');
+
+      expect(summariseSpy).toHaveBeenCalledWith(
+        meta.id,
+        'gpt-4o',
+        'https://custom.example.com/v1',
+      );
+    });
+
+    it('passes undefined summaryModel and summaryBaseUrl when not provided', async () => {
+      const meta = await store.createSession();
+      await store.appendMessages(meta.id, makeMessages(2));
+
+      const summariseSpy = vi.spyOn(store, 'summarise').mockResolvedValue('');
+
+      await store.buildHistory(meta.id, 'sys');
+
+      expect(summariseSpy).toHaveBeenCalledWith(meta.id, undefined, undefined);
+    });
   });
 });

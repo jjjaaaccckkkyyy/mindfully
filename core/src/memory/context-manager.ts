@@ -28,6 +28,11 @@ export interface ContextManagerConfig {
   ragResults?: number;
   summaryModel?: string;
   /**
+   * Base URL for the summary LLM endpoint.
+   * Defaults to `process.env.SUMMARY_BASE_URL` → `https://api.openai.com/v1`.
+   */
+  summaryBaseUrl?: string;
+  /**
    * Pre-built system prompt string. When set it is injected as the very first
    * message (`role: 'system'`) in the array returned by `buildMessages()`,
    * before any RAG or summary messages.
@@ -66,8 +71,9 @@ async function llmComplete(
   userMessage: string,
   apiKey: string,
   model: string,
+  baseUrl: string = process.env['SUMMARY_BASE_URL'] ?? 'https://opencode.ai/zen/v1',
 ): Promise<string> {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const response = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -103,6 +109,7 @@ export class ContextManager {
   private summariseThreshold: number;
   private ragResults: number;
   private summaryModel: string;
+  private summaryBaseUrl: string;
   private systemPrompt?: string;
 
   constructor(config: ContextManagerConfig = {}) {
@@ -111,7 +118,8 @@ export class ContextManager {
     this.windowSize = config.windowSize ?? parseInt(process.env.CONTEXT_WINDOW_SIZE || '20', 10);
     this.summariseThreshold = config.summariseThreshold ?? parseInt(process.env.CONTEXT_SUMMARISE_THRESHOLD || '40', 10);
     this.ragResults = config.ragResults ?? parseInt(process.env.CONTEXT_RAG_RESULTS || '5', 10);
-    this.summaryModel = config.summaryModel || process.env.SUMMARY_MODEL || 'gpt-4o-mini';
+    this.summaryModel = config.summaryModel || process.env.SUMMARY_MODEL || 'glm-5';
+    this.summaryBaseUrl = config.summaryBaseUrl || process.env['SUMMARY_BASE_URL'] || 'https://opencode.ai/zen/v1';
 
     this.embeddingProvider = createEmbeddingProvider(this.openaiApiKey);
 
@@ -269,6 +277,7 @@ export class ContextManager {
         `${existingSummary}New conversation to summarise:\n${transcript}`,
         this.openaiApiKey,
         this.summaryModel,
+        this.summaryBaseUrl,
       );
 
       logger.debug('Generated session summary', {

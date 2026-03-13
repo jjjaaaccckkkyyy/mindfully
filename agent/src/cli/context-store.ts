@@ -55,7 +55,7 @@ export interface CliHistoryMessage {
 export const DEFAULT_CONTEXT_DIR = path.join(os.homedir(), '.mindful', 'cli-sessions');
 const SESSIONS_FILE = 'sessions.json';
 const DEFAULT_WINDOW_SIZE = 20;
-const SUMMARY_MODEL = process.env['SUMMARY_MODEL'] ?? 'gpt-4o-mini';
+const SUMMARY_MODEL = process.env['SUMMARY_MODEL'] ?? 'glm-5';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -202,7 +202,7 @@ export class CliContextStore {
    * Writes the updated summary + new `summaryUpTo` watermark back to
    * sessions.json and returns the summary text.
    */
-  async summarise(sessionId: string, model: string = SUMMARY_MODEL): Promise<string> {
+  async summarise(sessionId: string, model: string = SUMMARY_MODEL, baseUrl?: string): Promise<string> {
     const messages = await this.readMessages(sessionId);
     if (messages.length === 0) return '';
 
@@ -227,7 +227,7 @@ export class CliContextStore {
       return priorSummary;
     }
 
-    const baseUrl = process.env['OPENCODE_ZEN_BASE_URL'] ?? 'https://api.openai.com/v1';
+    const resolvedBaseUrl = baseUrl ?? process.env['OPENCODE_ZEN_BASE_URL'] ?? 'https://opencode.ai/zen/v1';
 
     const SYSTEM_INSTRUCTION =
       'You are a conversation summariser. ' +
@@ -286,7 +286,7 @@ export class CliContextStore {
       ];
     }
 
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const response = await fetch(`${resolvedBaseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -336,6 +336,8 @@ export class CliContextStore {
     sessionId: string,
     systemPrompt: string,
     windowSize: number = DEFAULT_WINDOW_SIZE,
+    summaryModel?: string,
+    summaryBaseUrl?: string,
   ): Promise<CliHistoryMessage[]> {
     const history: CliHistoryMessage[] = [
       { role: 'system', content: systemPrompt },
@@ -347,7 +349,7 @@ export class CliContextStore {
     // Summarise all prior messages before building the window
     let summary: string;
     try {
-      summary = await this.summarise(sessionId);
+      summary = await this.summarise(sessionId, summaryModel, summaryBaseUrl);
     } catch (err) {
       logger.warn('Summarisation failed — continuing without summary', {
         error: err instanceof Error ? err.message : String(err),

@@ -16,6 +16,7 @@ const {
   mockMaybeSummarise,
   mockUpsertMessages,
   mockStream,
+  mockCreateProviderChain,
 } = vi.hoisted(() => ({
   mockVerifyIdToken: vi.fn(),
   mockAgentsRepo: { findById: vi.fn() },
@@ -40,6 +41,7 @@ const {
   mockMaybeSummarise: vi.fn(),
   mockUpsertMessages: vi.fn(),
   mockStream: vi.fn(),
+  mockCreateProviderChain: vi.fn().mockReturnValue({ id: 'mock-chain' }),
 }));
 
 vi.mock('../../db/index.js', () => ({ db: { query: vi.fn() } }));
@@ -77,6 +79,7 @@ vi.mock('agent', async (importOriginal) => {
     AgentRunner: vi.fn().mockImplementation(() => ({
       stream: mockStream,
     })),
+    createProviderChain: mockCreateProviderChain,
   };
 });
 vi.mock('../../tools/index.js', () => ({
@@ -86,6 +89,8 @@ vi.mock('../../tools/index.js', () => ({
 
 // Static import — picked up after mocks are registered
 import agentStreamRouter from '../../sse/agent-stream.js';
+import { ContextManager } from 'core';
+import { AgentRunner } from 'agent';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -103,8 +108,19 @@ function makeApp() {
   return app;
 }
 
-function makeAgent() {
-  return { id: agentId, user_id: userId, name: 'Test Agent' };
+function makeAgent(overrides: Record<string, unknown> = {}) {
+  return {
+    id: agentId,
+    user_id: userId,
+    name: 'Test Agent',
+    model: null,
+    temperature: null,
+    max_tokens: null,
+    provider_override: null,
+    provider_model: null,
+    system_prompt: null,
+    ...overrides,
+  };
 }
 
 function makeSession() {
@@ -353,5 +369,106 @@ describe('POST /api/agent/:agentId/run', () => {
       .send({ message: 'hello' });
 
     expect(res.status).toBe(404);
+  });
+
+  // ─── Provider chain construction ──────────────────────────────────────────
+
+  it('constructs AgentRunner with providerChain', async () => {
+    async function* fakeStream() {
+      yield { type: 'done', messages: [], cost: undefined };
+    }
+    mockStream.mockReturnValueOnce(fakeStream());
+
+    const app = makeApp();
+    await request(app)
+      .post(`/api/agent/${agentId}/run`)
+      .set('Authorization', 'Bearer valid-token')
+      .send({ message: 'hi' });
+
+    expect(mockCreateProviderChain).toHaveBeenCalled();
+    expect(AgentRunner).toHaveBeenCalledWith(
+      expect.objectContaining({ providerChain: expect.anything() }),
+    );
+  });
+
+  it('passes ContextManager with summaryBaseUrl from env', async () => {
+    const originalEnv = process.env['SUMMARY_BASE_URL'];
+    process.env['SUMMARY_BASE_URL'] = 'https://summary.example.com/v1';
+
+    async function* fakeStream() {
+      yield { type: 'done', messages: [], cost: undefined };
+    }
+    mockStream.mockReturnValueOnce(fakeStream());
+
+    const app = makeApp();
+    await request(app)
+      .post(`/api/agent/${agentId}/run`)
+      .set('Authorization', 'Bearer valid-token')
+      .send({ message: 'hi' });
+
+    expect(ContextManager).toHaveBeenCalledWith(
+      expect.objectContaining({ summaryBaseUrl: 'https://summary.example.com/v1' }),
+    );
+
+    if (originalEnv === undefined) delete process.env['SUMMARY_BASE_URL'];
+    else process.env['SUMMARY_BASE_URL'] = originalEnv;
+  });
+
+  it('calls createProviderChain with provider entry when provider_override is set', async () => {
+    mockAgentsRepo.findById.mockResolvedValueOnce(
+      makeAgent({
+        provider_override: 'anthropic',
+        provider_model: 'claude-3-opus',
+        model: 'gpt-4o',
+        temperature: 0.7,
+        max_tokens: 1024,
+      }),
+    );
+
+    async function* fakeStream() {
+      yield { type: 'done', messages: [], cost: undefined };
+    }
+    mockStream.mockReturnValueOnce(fakeStream());
+
+    const app = makeApp();
+    await request(app)
+      .post(`/api/agent/${agentId}/run`)
+      .set('Authorization', 'Bearer valid-token')
+      .send({ message: 'hi' });
+
+    expect(mockCreateProviderChain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providers: [
+          expect.objectContaining({
+            name: 'anthropic',
+            model: 'claude-3-opus',
+            temperature: 0.7,
+            maxTokens: 1024,
+          }),
+        ],
+      }),
+    );
+  });
+
+  it('calls createProviderChain with top-level model fields when provider_override is null', async () => {
+    mockAgentsRepo.findById.mockResolvedValueOnce(
+      makeAgent({ model: 'gpt-4-turbo', temperature: 0.5, max_tokens: 512 }),
+    );
+
+    async function* fakeStream() {
+      yield { type: 'done', messages: [], cost: undefined };
+    }
+    mockStream.mockReturnValueOnce(fakeStream());
+
+    const app = makeApp();
+    await request(app)
+      .post(`/api/agent/${agentId}/run`)
+      .set('Authorization', 'Bearer valid-token')
+      .send({ message: 'hi' });
+
+    // Should NOT have a providers array — just top-level model/temperature/maxTokens
+    const callArg = mockCreateProviderChain.mock.calls[mockCreateProviderChain.mock.calls.length - 1][0] as Record<string, unknown>;
+    expect(callArg).not.toHaveProperty('providers');
+    expect(callArg).toMatchObject({ model: 'gpt-4-turbo', temperature: 0.5, maxTokens: 512 });
   });
 });

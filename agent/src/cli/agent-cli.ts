@@ -3,14 +3,14 @@
  * CLI runner for the AgentRunner.
  *
  * Usage:
- *   pnpm --filter agent run-agent run "Your prompt here"
- *   pnpm --filter agent run-agent run --cwd /some/dir "Your prompt"
- *   pnpm --filter agent run-agent run --tools read,bash "Your prompt"
- *   pnpm --filter agent run-agent run --session <id> "Your prompt"
- *   pnpm --filter agent run-agent run --context-dir /custom/dir "Your prompt"
- *   pnpm --filter agent run-agent run          # reads prompt from stdin
- *   pnpm --filter agent run-agent sessions
- *   pnpm --filter agent run-agent sessions --context-dir /custom/dir
+ *   pnpm --filter agent agent-cli run "Your prompt here"
+ *   pnpm --filter agent agent-cli run --cwd /some/dir "Your prompt"
+ *   pnpm --filter agent agent-cli run --tools read,bash "Your prompt"
+ *   pnpm --filter agent agent-cli run --session <id> "Your prompt"
+ *   pnpm --filter agent agent-cli run --context-dir /custom/dir "Your prompt"
+ *   pnpm --filter agent agent-cli run          # reads prompt from stdin
+ *   pnpm --filter agent agent-cli sessions
+ *   pnpm --filter agent agent-cli sessions --context-dir /custom/dir
  *
  * Context is persisted locally so sessions can be resumed:
  *   - Default context dir: ~/.mindful/cli-sessions/
@@ -111,7 +111,7 @@ async function handleListSessions(opts: { contextDir: string }): Promise<void> {
 
 async function handleCompact(
   sessionIdArg: string | undefined,
-  opts: { contextDir: string },
+  opts: { contextDir: string; model?: string; provider?: string },
 ): Promise<void> {
   const store = new CliContextStore(opts.contextDir);
 
@@ -138,7 +138,7 @@ async function handleCompact(
 
   let summary: string;
   try {
-    summary = await store.summarise(session.id);
+    summary = await store.summarise(session.id, opts.model, opts.provider);
   } catch (err) {
     logger.error(`Compact failed: ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);
@@ -171,6 +171,12 @@ interface RunOptions {
   session?: string;
   concurrentTools?: boolean;
   compactFirst?: boolean;
+  provider?: string;
+  model?: string;
+  temperature?: string;
+  maxTokens?: string;
+  summaryModel?: string;
+  summaryProvider?: string;
 }
 
 async function runAgent(promptArg: string | undefined, opts: RunOptions): Promise<void> {
@@ -204,7 +210,7 @@ async function runAgent(promptArg: string | undefined, opts: RunOptions): Promis
   if (opts.compactFirst && session.messageCount > 0) {
     logger.info(`Compacting session ${session.id} before run…`);
     try {
-      await store.summarise(session.id);
+      await store.summarise(session.id, opts.summaryModel, opts.summaryProvider);
       logger.info('Compact complete.');
     } catch (err) {
       logger.warn(`Compact failed (continuing): ${err instanceof Error ? err.message : String(err)}`);
@@ -230,7 +236,15 @@ async function runAgent(promptArg: string | undefined, opts: RunOptions): Promis
   // Build provider chain
   let providerChain;
   try {
-    providerChain = createProviderChain();
+    const providers = opts.provider
+      ? opts.provider.split(',').map((p) => p.trim()).filter(Boolean)
+      : undefined;
+    providerChain = createProviderChain({
+      ...(providers ? { providers } : {}),
+      ...(opts.model ? { model: opts.model } : {}),
+      ...(opts.temperature !== undefined ? { temperature: parseFloat(opts.temperature) } : {}),
+      ...(opts.maxTokens !== undefined ? { maxTokens: parseInt(opts.maxTokens, 10) } : {}),
+    });
   } catch (err) {
     logger.error(
       `Error creating provider chain: ${err instanceof Error ? err.message : String(err)}`,
@@ -273,7 +287,7 @@ async function runAgent(promptArg: string | undefined, opts: RunOptions): Promis
   });
 
   // Build history: system prompt + optional summary + sliding window
-  const history = await store.buildHistory(session.id, systemPromptContent);
+  const history = await store.buildHistory(session.id, systemPromptContent, undefined, opts.summaryModel, opts.summaryProvider);
 
   // Append user message for the runner
   history.push({ role: 'user', content: prompt });
@@ -390,7 +404,7 @@ async function runAgent(promptArg: string | undefined, opts: RunOptions): Promis
 // ---------------------------------------------------------------------------
 
 const program = new Command()
-  .name('run-agent')
+  .name('agent-cli')
   .description('Mindful CLI agent runner')
   .version('0.1.5')
   // Top-level options (work with both bare invocation and subcommands)
@@ -401,7 +415,13 @@ const program = new Command()
   .option('--list-sessions', 'List all sessions and exit')
   .option('--concurrent-tools', 'Execute multiple tool calls concurrently (default: sequential)')
   .option('--compact-first', 'Compact (summarise) the session before running the agent')
-  // Default action: bare `run-agent [prompt]` with no subcommand
+  .option('--provider <names>', 'Comma-separated provider names, e.g. opencode-zen,openai')
+  .option('--model <name>', 'Model name to use (overrides LLM_MODEL env var)')
+  .option('--temperature <n>', 'Sampling temperature (0–2)')
+  .option('--max-tokens <n>', 'Maximum tokens per response')
+  .option('--summary-model <name>', 'Model to use for session summarisation')
+  .option('--summary-provider <url>', 'Base URL for the summarisation API endpoint')
+  // Default action: bare `agent-cli [prompt]` with no subcommand
   .argument('[prompt]', 'Prompt to run (reads stdin if omitted)')
   .action(async (promptArg: string | undefined, opts: RunOptions & { listSessions?: boolean }) => {
     if (opts.listSessions) {
@@ -421,6 +441,12 @@ program
   .option('-s, --session <id>', 'Resume a specific session by ID')
   .option('--concurrent-tools', 'Execute multiple tool calls concurrently (default: sequential)')
   .option('--compact-first', 'Compact (summarise) the session before running the agent')
+  .option('--provider <names>', 'Comma-separated provider names, e.g. opencode-zen,openai')
+  .option('--model <name>', 'Model name to use (overrides LLM_MODEL env var)')
+  .option('--temperature <n>', 'Sampling temperature (0–2)')
+  .option('--max-tokens <n>', 'Maximum tokens per response')
+  .option('--summary-model <name>', 'Model to use for session summarisation')
+  .option('--summary-provider <url>', 'Base URL for the summarisation API endpoint')
   .action(async (prompt: string | undefined, opts: RunOptions) => {
     await runAgent(prompt, opts);
   });
@@ -439,7 +465,9 @@ program
   .command('compact [session-id]')
   .description('Compact (summarise) a session — defaults to the most recent session')
   .option('--context-dir <path>', 'Context directory', DEFAULT_CONTEXT_DIR)
-  .action(async (sessionId: string | undefined, opts: { contextDir: string }) => {
+  .option('--model <name>', 'Model to use for summarisation')
+  .option('--provider <url>', 'Base URL for the summarisation API endpoint')
+  .action(async (sessionId: string | undefined, opts: { contextDir: string; model?: string; provider?: string }) => {
     await handleCompact(sessionId, opts);
   });
 

@@ -62,18 +62,42 @@ export class ProviderChain {
     for (let providerIndex = 0; providerIndex < this.providers.length; providerIndex++) {
       const provider = this.providers[providerIndex];
 
-      try {
-        for await (const chunk of provider.stream(messages, tools)) {
-          yield chunk;
+      for (let retry = 0; retry < this.config.retryCount; retry++) {
+        let chunksYielded = 0;
+        try {
+          for await (const chunk of provider.stream(messages, tools)) {
+            chunksYielded++;
+            yield chunk;
+            if (chunk.usage) {
+              const costInfo = provider.getCost({
+                inputTokens: chunk.usage.inputTokens,
+                outputTokens: chunk.usage.outputTokens,
+              });
+              this.costHistory.push(costInfo);
+            }
+          }
+          return; // success
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error(String(error));
+          if (chunksYielded > 0) {
+            // Mid-stream failure — cannot retry, fall through to next provider
+            logger.warn(
+              `Provider ${provider.name} failed mid-stream after ${chunksYielded} chunks: ${lastError.message}`,
+            );
+            break;
+          }
+          // Pre-stream failure — retry
+          logger.warn(
+            `Provider ${provider.name} stream failed pre-stream (attempt ${retry + 1}/${this.config.retryCount}): ${lastError.message}`,
+          );
+          if (this.config.delayMs && retry < this.config.retryCount - 1) {
+            await this.delay(this.config.delayMs);
+          }
         }
-        return;
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-        logger.warn(`Provider ${provider.name} stream failed: ${lastError.message}`);
+      }
 
-        if (this.config.delayMs && providerIndex < this.providers.length - 1) {
-          await this.delay(this.config.delayMs);
-        }
+      if (this.config.delayMs && providerIndex < this.providers.length - 1) {
+        await this.delay(this.config.delayMs);
       }
     }
 

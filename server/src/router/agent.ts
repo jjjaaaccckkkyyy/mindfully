@@ -36,6 +36,8 @@ export const agentRouter = router({
       systemPrompt: z.string().optional(),
       maxTokens: z.number().optional(),
       temperature: z.number().optional(),
+      providerOverride: z.string().optional(),
+      providerModel: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       return agentsRepository.create({
@@ -48,6 +50,8 @@ export const agentRouter = router({
         system_prompt: input.systemPrompt,
         max_tokens: input.maxTokens,
         temperature: input.temperature,
+        provider_override: input.providerOverride,
+        provider_model: input.providerModel,
       });
     }),
 
@@ -62,6 +66,8 @@ export const agentRouter = router({
       systemPrompt: z.string().optional(),
       maxTokens: z.number().optional(),
       temperature: z.number().optional(),
+      providerOverride: z.string().optional(),
+      providerModel: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...updateData } = input;
@@ -78,6 +84,8 @@ export const agentRouter = router({
         system_prompt: updateData.systemPrompt,
         max_tokens: updateData.maxTokens,
         temperature: updateData.temperature,
+        provider_override: updateData.providerOverride,
+        provider_model: updateData.providerModel,
       });
     }),
 

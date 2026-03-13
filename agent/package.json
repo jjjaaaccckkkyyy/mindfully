@@ -10,7 +10,7 @@
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "run-agent": "tsx --env-file=../server/.env src/cli/run-agent.ts"
+    "agent-cli": "tsx --env-file=../server/.env src/cli/agent-cli.ts"
   },
   "dependencies": {
     "@langchain/anthropic": "^1.3.22",
