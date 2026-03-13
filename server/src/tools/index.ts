@@ -1,4 +1,4 @@
-import { createBuiltinTools, type Tool } from 'core';
+import { createBuiltinTools, type Tool, type ToolContext } from 'core';
 
 /**
  * Returns the builtin tool list for the server-side agent runner.
@@ -13,6 +13,7 @@ export function getBuiltinTools(): Tool[] {
 export async function executeTool(
   name: string,
   args: Record<string, unknown>,
+  context?: ToolContext,
 ): Promise<{ result: unknown; error?: string }> {
   const tools = getBuiltinTools();
   const tool = tools.find((t) => t.name === name);
@@ -20,7 +21,7 @@ export async function executeTool(
     return { result: null, error: `Tool "${name}" not found` };
   }
   try {
-    const result = await tool.execute(args);
+    const result = await tool.execute(args, context);
     return { result };
   } catch (err) {
     return {

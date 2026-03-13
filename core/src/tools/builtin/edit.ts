@@ -10,6 +10,10 @@ const EditSchema = z.object({
   path: z.string().describe('The file path to edit'),
   search: z.string().describe('The text to search for in the file'),
   replace: z.string().describe('The text to replace the search text with'),
+  replaceAll: z
+    .boolean()
+    .optional()
+    .describe('Replace all occurrences (default: false — replaces first occurrence only)'),
 });
 
 export type EditInput = z.infer<typeof EditSchema>;
@@ -17,7 +21,9 @@ export type EditInput = z.infer<typeof EditSchema>;
 export function createEditTool(): Tool {
   return createTool({
     name: 'edit',
-    description: 'Edit a file by replacing specific text with new text',
+    description:
+      'Edit a file by replacing specific text with new text. ' +
+      'By default replaces only the first occurrence; set replaceAll to true to replace every occurrence.',
     inputSchema: EditSchema,
     execute: async (input: unknown, context?: ToolContext) => {
       const args = input as EditInput;
@@ -27,7 +33,7 @@ export function createEditTool(): Tool {
           ? args.path
           : path.join(workspaceDir, args.path);
 
-        logger.debug('edit file', { path: filePath, searchLength: args.search.length });
+        logger.debug('edit file', { path: filePath, searchLength: args.search.length, replaceAll: args.replaceAll ?? false });
         let content = await fs.readFile(filePath, 'utf-8');
 
         if (!content.includes(args.search)) {
@@ -38,14 +44,24 @@ export function createEditTool(): Tool {
           };
         }
 
-        content = content.replace(args.search, args.replace);
+        let replacements: number;
+        if (args.replaceAll) {
+          // Count occurrences before replacing
+          const parts = content.split(args.search);
+          replacements = parts.length - 1;
+          content = parts.join(args.replace);
+        } else {
+          content = content.replace(args.search, args.replace);
+          replacements = 1;
+        }
+
         await fs.writeFile(filePath, content, 'utf-8');
-        logger.debug('edit file succeeded', { path: filePath });
+        logger.debug('edit file succeeded', { path: filePath, replacements });
 
         return {
           success: true,
           path: filePath,
-          replacements: 1,
+          replacements,
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to edit file';

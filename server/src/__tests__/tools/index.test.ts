@@ -46,7 +46,7 @@ describe('tools/index', () => {
 
       const result = await executeTool('test-tool', { arg: 'value' });
       expect(result).toEqual({ result: 'tool output' });
-      expect(mockTool.execute).toHaveBeenCalledWith({ arg: 'value' });
+      expect(mockTool.execute).toHaveBeenCalledWith({ arg: 'value' }, undefined);
     });
 
     it('returns an error when tool is not found', async () => {
@@ -75,6 +75,22 @@ describe('tools/index', () => {
         result: null,
         error: 'Tool execution failed',
       });
+    });
+
+    it('forwards ToolContext to tool.execute when provided', async () => {
+      mockTool.execute.mockResolvedValue('ctx output');
+      const context = { workspaceDir: '/my/workspace' };
+
+      const result = await executeTool('test-tool', { arg: 1 }, context);
+      expect(result).toEqual({ result: 'ctx output' });
+      expect(mockTool.execute).toHaveBeenCalledWith({ arg: 1 }, context);
+    });
+
+    it('forwards undefined context when context is omitted', async () => {
+      mockTool.execute.mockResolvedValue('no ctx');
+
+      await executeTool('test-tool', { x: 'y' });
+      expect(mockTool.execute).toHaveBeenCalledWith({ x: 'y' }, undefined);
     });
   });
 });

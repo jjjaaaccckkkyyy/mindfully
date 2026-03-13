@@ -1,6 +1,6 @@
 import express from 'express';
 import type { Request, Response, Router } from 'express';
-import { AgentRunner } from 'agent';
+import { AgentRunner, buildSystemPrompt } from 'agent';
 import { ContextManager, type StoredMessage } from 'core';
 import { verifyIdToken } from '../auth/utils/id-token.js';
 import { agentsRepository } from '../db/repositories/agents.js';
@@ -148,7 +148,13 @@ router.post('/agent/:agentId/run', async (req: Request, res: Response) => {
     }
 
     // --- Build context ---
-    const contextManager = new ContextManager();
+    const tools = getBuiltinTools();
+    const systemPrompt = await buildSystemPrompt({
+      tools,
+      workspaceDir: process.cwd(),
+      agentSystemPrompt: agent.system_prompt ?? undefined,
+    });
+    const contextManager = new ContextManager({ systemPrompt });
     const allStoredMessages = (await sessionMessagesRepository.findBySessionId(sessionId, 1000)).items;
     const sessionRecord = {
       id: session.id,
@@ -178,7 +184,6 @@ router.post('/agent/:agentId/run', async (req: Request, res: Response) => {
     await executionsRepository.update(execution.id, { status: 'running' });
 
     // --- Run agent stream ---
-    const tools = getBuiltinTools();
     const runner = new AgentRunner();
     const newMessages: Array<{
       role: 'assistant' | 'tool';
@@ -194,7 +199,7 @@ router.post('/agent/:agentId/run', async (req: Request, res: Response) => {
     for await (const event of runner.stream({
       input: message,
       tools,
-      toolExecutor: (name, args) => executeTool(name, args),
+      toolExecutor: (name, args) => executeTool(name, args, { workspaceDir: process.cwd() }),
       history: contextMessages,
     })) {
       switch (event.type) {

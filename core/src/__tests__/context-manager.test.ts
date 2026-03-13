@@ -125,6 +125,34 @@ describe('ContextManager', () => {
       const nonSystem = result.filter((m) => m.role !== 'system');
       expect(nonSystem[0].tool_calls).toEqual([{ name: 'search', args: { q: 'test' } }]);
     });
+
+    it('prepends systemPrompt as first message before RAG and summary', async () => {
+      const cm = new ContextManager({
+        windowSize: 5,
+        qdrantUrl: undefined,
+        systemPrompt: 'You are a specialist agent.',
+      });
+      const messages = [makeMessage({ sequenceNumber: 1, role: 'user', content: 'Hello' })];
+      const session = makeSession({ summary: 'Prior summary', summaryUpTo: 0 });
+
+      const result = await cm.buildMessages(session, messages);
+
+      expect(result[0]).toEqual({ role: 'system', content: 'You are a specialist agent.' });
+      // Summary message should still exist further in the array
+      const summaryMsg = result.find((m) => m.role === 'system' && m.content.includes('Prior summary'));
+      expect(summaryMsg).toBeDefined();
+    });
+
+    it('does not inject a system prompt message when systemPrompt is not set', async () => {
+      const cm = new ContextManager({ windowSize: 5, qdrantUrl: undefined });
+      const messages = [makeMessage({ sequenceNumber: 1, role: 'user', content: 'Hello' })];
+
+      const result = await cm.buildMessages(makeSession(), messages);
+
+      // Without a summary or RAG, there should be no system messages at all
+      const systemMessages = result.filter((m) => m.role === 'system');
+      expect(systemMessages).toHaveLength(0);
+    });
   });
 
   // ─── maybeSummarise ───────────────────────────────────────────────────────

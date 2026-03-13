@@ -445,9 +445,14 @@ function isOptionalOrDefault(schema: z.ZodTypeAny): boolean {
 }
 
 function zodTypeToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
-  // Unwrap Optional and Default wrappers transparently
+  // Unwrap transparent wrappers
   if (schema instanceof z.ZodOptional) return zodTypeToJsonSchema(schema.unwrap());
   if (schema instanceof z.ZodDefault) return zodTypeToJsonSchema(schema._def.innerType);
+  if (schema instanceof z.ZodNullable) {
+    const inner = zodTypeToJsonSchema(schema.unwrap());
+    return { ...inner, nullable: true };
+  }
+
   if (schema instanceof z.ZodString) {
     const result: Record<string, unknown> = { type: 'string' };
     if (schema.description) result.description = schema.description;
@@ -463,14 +468,35 @@ function zodTypeToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
     if (schema.description) result.description = schema.description;
     return result;
   }
-  if (schema instanceof z.ZodArray) return { type: 'array', items: zodTypeToJsonSchema(schema.element) };
+  if (schema instanceof z.ZodLiteral) {
+    const val = schema._def.value;
+    const type = typeof val === 'number' ? 'number' : typeof val === 'boolean' ? 'boolean' : 'string';
+    return { type, const: val };
+  }
+  if (schema instanceof z.ZodArray) {
+    return { type: 'array', items: zodTypeToJsonSchema(schema.element) };
+  }
   if (schema instanceof z.ZodObject) {
     const shape = schema.shape as Record<string, z.ZodTypeAny>;
     const props: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(shape)) props[k] = zodTypeToJsonSchema(v);
-    return { type: 'object', properties: props };
+    const required: string[] = [];
+    for (const [k, v] of Object.entries(shape)) {
+      props[k] = zodTypeToJsonSchema(v);
+      if (!isOptionalOrDefault(v)) required.push(k);
+    }
+    return { type: 'object', properties: props, ...(required.length > 0 ? { required } : {}) };
   }
   if (schema instanceof z.ZodEnum) return { type: 'string', enum: schema.options };
+  if (schema instanceof z.ZodUnion) {
+    const options = schema._def.options as z.ZodTypeAny[];
+    return { oneOf: options.map(zodTypeToJsonSchema) };
+  }
+  if (schema instanceof z.ZodDiscriminatedUnion) {
+    const options = Array.from(
+      (schema._def.optionsMap as Map<unknown, z.ZodTypeAny>).values(),
+    );
+    return { oneOf: options.map(zodTypeToJsonSchema) };
+  }
   return {};
 }
 

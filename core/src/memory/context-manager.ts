@@ -27,6 +27,12 @@ export interface ContextManagerConfig {
   summariseThreshold?: number;
   ragResults?: number;
   summaryModel?: string;
+  /**
+   * Pre-built system prompt string. When set it is injected as the very first
+   * message (`role: 'system'`) in the array returned by `buildMessages()`,
+   * before any RAG or summary messages.
+   */
+  systemPrompt?: string;
 }
 
 export interface StoredMessage {
@@ -97,8 +103,10 @@ export class ContextManager {
   private summariseThreshold: number;
   private ragResults: number;
   private summaryModel: string;
+  private systemPrompt?: string;
 
   constructor(config: ContextManagerConfig = {}) {
+    this.systemPrompt = config.systemPrompt;
     this.openaiApiKey = config.openaiApiKey || process.env.OPENAI_API_KEY;
     this.windowSize = config.windowSize ?? parseInt(process.env.CONTEXT_WINDOW_SIZE || '20', 10);
     this.summariseThreshold = config.summariseThreshold ?? parseInt(process.env.CONTEXT_SUMMARISE_THRESHOLD || '40', 10);
@@ -291,6 +299,11 @@ export class ContextManager {
     messages: StoredMessage[],
   ): Promise<ContextMessage[]> {
     const result: ContextMessage[] = [];
+
+    // --- Layer 0: System prompt (injected first, before all context) ---
+    if (this.systemPrompt) {
+      result.push({ role: 'system', content: this.systemPrompt });
+    }
 
     // --- Layer 1: RAG ---
     const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
