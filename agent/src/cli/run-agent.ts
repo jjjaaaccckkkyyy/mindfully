@@ -106,8 +106,63 @@ async function handleListSessions(opts: { contextDir: string }): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// `run` subcommand action
+// `compact` subcommand action
 // ---------------------------------------------------------------------------
+
+async function handleCompact(
+  sessionIdArg: string | undefined,
+  opts: { contextDir: string },
+): Promise<void> {
+  const store = new CliContextStore(opts.contextDir);
+
+  let session;
+  if (sessionIdArg) {
+    session = await store.getSession(sessionIdArg);
+    if (!session) {
+      logger.error(`Session "${sessionIdArg}" not found. Run "sessions" to see available sessions.`);
+      process.exit(1);
+    }
+  } else {
+    const sessions = await store.listSessions();
+    if (sessions.length === 0) {
+      println('No sessions found.');
+      return;
+    }
+    session = sessions[0]!;
+  }
+
+  println();
+  printSeparator();
+  println(`Compacting session : ${session.id}  (${session.messageCount} messages)`);
+  printSeparator();
+
+  let summary: string;
+  try {
+    summary = await store.summarise(session.id);
+  } catch (err) {
+    logger.error(`Compact failed: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
+  }
+
+  if (!summary) {
+    println('Nothing to compact (no messages or no API key configured).');
+    println();
+    return;
+  }
+
+  println();
+  println('Summary:');
+  println();
+  println(summary);
+  println();
+  printSeparator();
+  const updated = await store.getSession(session.id);
+  println(`Compacted up to message ${updated?.summaryUpTo ?? '?'} of ${session.messageCount}`);
+  printSeparator();
+  println();
+}
+
+
 
 interface RunOptions {
   cwd: string;
@@ -115,6 +170,7 @@ interface RunOptions {
   contextDir: string;
   session?: string;
   concurrentTools?: boolean;
+  compactFirst?: boolean;
 }
 
 async function runAgent(promptArg: string | undefined, opts: RunOptions): Promise<void> {
@@ -142,6 +198,17 @@ async function runAgent(promptArg: string | undefined, opts: RunOptions): Promis
   } else {
     session = await store.createSession();
     logger.info(`New session: ${session.id}`);
+  }
+
+  // Compact (summarise) session history before running if requested
+  if (opts.compactFirst && session.messageCount > 0) {
+    logger.info(`Compacting session ${session.id} before run…`);
+    try {
+      await store.summarise(session.id);
+      logger.info('Compact complete.');
+    } catch (err) {
+      logger.warn(`Compact failed (continuing): ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   // Build tools
@@ -333,6 +400,7 @@ const program = new Command()
   .option('-s, --session <id>', 'Resume a specific session by ID')
   .option('--list-sessions', 'List all sessions and exit')
   .option('--concurrent-tools', 'Execute multiple tool calls concurrently (default: sequential)')
+  .option('--compact-first', 'Compact (summarise) the session before running the agent')
   // Default action: bare `run-agent [prompt]` with no subcommand
   .argument('[prompt]', 'Prompt to run (reads stdin if omitted)')
   .action(async (promptArg: string | undefined, opts: RunOptions & { listSessions?: boolean }) => {
@@ -352,6 +420,7 @@ program
   .option('--context-dir <path>', 'Context directory', DEFAULT_CONTEXT_DIR)
   .option('-s, --session <id>', 'Resume a specific session by ID')
   .option('--concurrent-tools', 'Execute multiple tool calls concurrently (default: sequential)')
+  .option('--compact-first', 'Compact (summarise) the session before running the agent')
   .action(async (prompt: string | undefined, opts: RunOptions) => {
     await runAgent(prompt, opts);
   });
@@ -363,6 +432,15 @@ program
   .option('--context-dir <path>', 'Context directory', DEFAULT_CONTEXT_DIR)
   .action(async (opts: { contextDir: string }) => {
     await handleListSessions(opts);
+  });
+
+// `compact` subcommand
+program
+  .command('compact [session-id]')
+  .description('Compact (summarise) a session — defaults to the most recent session')
+  .option('--context-dir <path>', 'Context directory', DEFAULT_CONTEXT_DIR)
+  .action(async (sessionId: string | undefined, opts: { contextDir: string }) => {
+    await handleCompact(sessionId, opts);
   });
 
 program.parseAsync(process.argv).catch((err) => {

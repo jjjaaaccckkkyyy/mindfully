@@ -73,7 +73,7 @@ function getDefaultProviders(): string[] {
 
 export function getProviderModels(provider: string): string[] {
   const models: Record<string, string[]> = {
-    'opencode-zen': ['big-pickle','glm-5-go',
+    'opencode-zen': ['big-pickle','minimax-m2.5-free',
       'glm-5', 'glm-4.7', 'glm-4.6',
       'gpt-5.1-codex', 'gpt-5.1-codex-mini', 'gpt-5.1-codex-max',
       'gpt-5.3-codex', 'gpt-5.4-pro',

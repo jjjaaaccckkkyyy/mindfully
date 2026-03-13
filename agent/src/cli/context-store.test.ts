@@ -329,5 +329,101 @@ describe('CliContextStore', () => {
 
       delete process.env['OPENAI_API_KEY'];
     });
+
+    // ── Incremental summarisation ───────────────────────────────────────────
+
+    it('returns cached summary without calling API when summaryUpTo equals message count', async () => {
+      const meta = await store.createSession();
+      await store.appendMessages(meta.id, makeMessages(3));
+
+      process.env['OPENAI_API_KEY'] = 'test-key';
+
+      // First compact — sets summaryUpTo = 3
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'Initial summary.' } }] }),
+      } as Response);
+
+      await store.summarise(meta.id);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      fetchSpy.mockClear();
+
+      // Second call — nothing new, should hit cache
+      const result = await store.summarise(meta.id);
+      expect(result).toBe('Initial summary.');
+      expect(fetchSpy).not.toHaveBeenCalled();
+
+      delete process.env['OPENAI_API_KEY'];
+    });
+
+    it('sends a delta prompt when new messages have arrived since last compact', async () => {
+      const meta = await store.createSession();
+      await store.appendMessages(meta.id, makeMessages(3));
+
+      process.env['OPENAI_API_KEY'] = 'test-key';
+
+      // First compact — 3 messages → summaryUpTo = 3
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'First summary.' } }] }),
+      } as Response);
+      await store.summarise(meta.id);
+
+      // Add 2 more messages
+      await store.appendMessages(meta.id, makeMessages(2, 4));
+
+      // Second compact — should send delta prompt referencing prior summary + new messages
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'Updated summary.' } }] }),
+      } as Response);
+
+      const result = await store.summarise(meta.id);
+      expect(result).toBe('Updated summary.');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      // The request body should mention the prior summary and new messages
+      const [, init] = fetchSpy.mock.calls[0]!;
+      const body = JSON.parse(init!.body as string) as {
+        messages: Array<{ role: string; content: string }>;
+      };
+      const userMsg = body.messages.find((m) => m.role === 'user')!;
+      expect(userMsg.content).toContain('Prior summary');
+      expect(userMsg.content).toContain('First summary.');
+      expect(userMsg.content).toContain('New messages');
+
+      // summaryUpTo should now be 5
+      const updated = await store.getSession(meta.id);
+      expect(updated?.summaryUpTo).toBe(5);
+      expect(updated?.summary).toBe('Updated summary.');
+
+      delete process.env['OPENAI_API_KEY'];
+    });
+
+    it('does a full summarisation from scratch when no prior summary exists', async () => {
+      const meta = await store.createSession();
+      await store.appendMessages(meta.id, makeMessages(4));
+
+      process.env['OPENAI_API_KEY'] = 'test-key';
+
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'Fresh summary.' } }] }),
+      } as Response);
+
+      const result = await store.summarise(meta.id);
+      expect(result).toBe('Fresh summary.');
+
+      // Full transcript prompt — no "Prior summary" mention
+      const [, init] = fetchSpy.mock.calls[0]!;
+      const body = JSON.parse(init!.body as string) as {
+        messages: Array<{ role: string; content: string }>;
+      };
+      const userMsg = body.messages.find((m) => m.role === 'user')!;
+      expect(userMsg.content).toContain('Conversation transcript');
+      expect(userMsg.content).not.toContain('Prior summary');
+
+      delete process.env['OPENAI_API_KEY'];
+    });
   });
 });

@@ -187,8 +187,20 @@ export class CliContextStore {
   // ─── Summarisation ────────────────────────────────────────────────────────
 
   /**
-   * Summarise all messages in the session using an LLM.
-   * Writes the summary back to sessions.json and returns the summary text.
+   * Summarise the session using an LLM — incremental by default.
+   *
+   * Behaviour:
+   *   - If no messages exist → returns '' immediately (no API call).
+   *   - If no API key is set → returns '' immediately (no API call).
+   *   - If `summaryUpTo === messages.length` → nothing new since last compact;
+   *     returns the cached summary immediately (no API call).
+   *   - If a prior summary exists and new messages have arrived since it was
+   *     created → sends a delta prompt: "here is the prior summary, here are
+   *     the new messages — produce an updated summary."
+   *   - If no prior summary exists → full summarisation from scratch.
+   *
+   * Writes the updated summary + new `summaryUpTo` watermark back to
+   * sessions.json and returns the summary text.
    */
   async summarise(sessionId: string, model: string = SUMMARY_MODEL): Promise<string> {
     const messages = await this.readMessages(sessionId);
@@ -200,31 +212,79 @@ export class CliContextStore {
       return '';
     }
 
+    // ── Incremental check ──────────────────────────────────────────────────
+    const session = await this.getSession(sessionId);
+    const priorSummary = session?.summary ?? '';
+    const summaryUpTo = session?.summaryUpTo ?? 0;
+
+    if (summaryUpTo >= messages.length && priorSummary) {
+      // Nothing new since the last compact — return cached summary.
+      logger.debug('summarise: up to date, returning cached summary', {
+        sessionId,
+        summaryUpTo,
+        messageCount: messages.length,
+      });
+      return priorSummary;
+    }
+
     const baseUrl = process.env['OPENCODE_ZEN_BASE_URL'] ?? 'https://api.openai.com/v1';
 
-    // Build a readable transcript for the summarisation prompt
-    const transcript = messages
-      .map((m) => {
-        const prefix = m.role === 'tool' ? `[tool: ${m.toolName ?? 'unknown'}]` : `[${m.role}]`;
-        return `${prefix} ${m.content}`;
-      })
-      .join('\n\n');
+    const SYSTEM_INSTRUCTION =
+      'You are a conversation summariser. ' +
+      'Produce a concise but complete summary. ' +
+      'Capture: the user\'s goals, what was accomplished, key facts discovered, and any open threads. ' +
+      'Be specific — include file names, commands, and decisions made. ' +
+      'Write in the third person. Maximum 300 words.';
 
-    const systemMsg = {
-      role: 'system' as const,
-      content:
-        'You are a conversation summariser. ' +
-        'Produce a concise but complete summary of the following conversation transcript. ' +
-        'Capture: the user\'s goals, what was accomplished, key facts discovered, and any open threads. ' +
-        'Be specific — include file names, commands, and decisions made. ' +
-        'Write in the third person. Maximum 300 words.',
-    };
-    const userMsg = {
-      role: 'user' as const,
-      content: `Conversation transcript:\n\n${transcript}`,
-    };
+    let llmMessages: Array<{ role: 'system' | 'user'; content: string }>;
 
-    logger.debug('summarising session', { sessionId, messages: messages.length, model });
+    if (priorSummary && summaryUpTo > 0 && summaryUpTo < messages.length) {
+      // ── Incremental: only summarise new messages since last compact ────────
+      const newMessages = messages.slice(summaryUpTo);
+      const deltaTranscript = newMessages
+        .map((m) => {
+          const prefix = m.role === 'tool' ? `[tool: ${m.toolName ?? 'unknown'}]` : `[${m.role}]`;
+          return `${prefix} ${m.content}`;
+        })
+        .join('\n\n');
+
+      logger.debug('summarise: incremental — summarising delta', {
+        sessionId,
+        priorUpTo: summaryUpTo,
+        newMessages: newMessages.length,
+        model,
+      });
+
+      llmMessages = [
+        { role: 'system', content: SYSTEM_INSTRUCTION },
+        {
+          role: 'user',
+          content:
+            `Prior summary (covering messages 1–${summaryUpTo}):\n\n${priorSummary}\n\n` +
+            `New messages (${summaryUpTo + 1}–${messages.length}):\n\n${deltaTranscript}\n\n` +
+            'Produce an updated summary that incorporates both the prior summary and the new messages.',
+        },
+      ];
+    } else {
+      // ── Full summarisation from scratch ────────────────────────────────────
+      const transcript = messages
+        .map((m) => {
+          const prefix = m.role === 'tool' ? `[tool: ${m.toolName ?? 'unknown'}]` : `[${m.role}]`;
+          return `${prefix} ${m.content}`;
+        })
+        .join('\n\n');
+
+      logger.debug('summarise: full summarisation from scratch', {
+        sessionId,
+        messages: messages.length,
+        model,
+      });
+
+      llmMessages = [
+        { role: 'system', content: SYSTEM_INSTRUCTION },
+        { role: 'user', content: `Conversation transcript:\n\n${transcript}` },
+      ];
+    }
 
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
@@ -234,7 +294,7 @@ export class CliContextStore {
       },
       body: JSON.stringify({
         model,
-        messages: [systemMsg, userMsg],
+        messages: llmMessages,
         max_tokens: 512,
         temperature: 0.3,
       }),
