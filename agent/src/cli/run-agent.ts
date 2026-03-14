@@ -24,7 +24,7 @@ import * as readline from 'node:readline';
 import { Command } from 'commander';
 import { AgentRunner } from '../agents/runner.js';
 import { buildSystemPrompt } from '../agents/prompt/build-system-prompt.js';
-import { createProviderChain } from '../agents/providers/index.js';
+import { createLLMChain } from '../agents/providers/index.js';
 import { createBuiltinTools, builtinToolNames, type BuiltinToolName } from 'core';
 import type { Tool, ToolContext } from 'core';
 import { createLogger } from 'core';
@@ -54,6 +54,22 @@ function printSeparator(): void {
 
 function truncate(s: string, maxLen: number): string {
   return s.length <= maxLen ? s : s.slice(0, maxLen) + '…';
+}
+
+// ---------------------------------------------------------------------------
+// Inline-token flush helper
+// ---------------------------------------------------------------------------
+
+/**
+ * If tokens are currently being streamed inline (no trailing newline yet),
+ * emit a newline and reset the flag.  Must be called before any logger output
+ * to avoid mixing log lines with partial token output.
+ */
+function flushInlineTokens(active: { value: boolean }): void {
+  if (active.value) {
+    println();
+    active.value = false;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -159,18 +175,18 @@ async function runAgent(promptArg: string | undefined, opts: RunOptions): Promis
       ? allTools
       : allTools.filter((t) => (toolFilter as string[]).includes(t.name));
 
-  // Build provider chain
-  let providerChain;
+  // Build provider chain (LLMChain)
+  let llmChain;
   try {
-    providerChain = createProviderChain();
+    llmChain = createLLMChain();
   } catch (err) {
     logger.error(
-      `Error creating provider chain: ${err instanceof Error ? err.message : String(err)}`,
+      `Error creating LLM chain: ${err instanceof Error ? err.message : String(err)}`,
     );
     process.exit(1);
   }
 
-  const runner = new AgentRunner({ providerChain });
+  const runner = new AgentRunner({ llmChain });
 
   // Tool executor
   const context: ToolContext = { workspaceDir: cwd };
@@ -222,7 +238,7 @@ async function runAgent(promptArg: string | undefined, opts: RunOptions): Promis
   });
 
   // Stream responses
-  let inlineTokensActive = false;
+  const inlineTokensActive = { value: false };
 
   for await (const event of runner.stream({
     input: prompt,
@@ -232,17 +248,17 @@ async function runAgent(promptArg: string | undefined, opts: RunOptions): Promis
   })) {
     switch (event.type) {
       case 'token':
-        inlineTokensActive = true;
+        inlineTokensActive.value = true;
         print(event.content);
         break;
 
       case 'tool_start':
-        if (inlineTokensActive) { println(); inlineTokensActive = false; }
+        flushInlineTokens(inlineTokensActive);
         logger.info(`tool_start: ${event.name}`, { args: event.args });
         break;
 
       case 'tool_result':
-        if (inlineTokensActive) { println(); inlineTokensActive = false; }
+        flushInlineTokens(inlineTokensActive);
         if (event.error) {
           logger.warn(`tool_result: ${event.name}`, { error: event.error });
           newMessages.push({
@@ -268,7 +284,7 @@ async function runAgent(promptArg: string | undefined, opts: RunOptions): Promis
         break;
 
       case 'done': {
-        if (inlineTokensActive) { println(); inlineTokensActive = false; }
+        flushInlineTokens(inlineTokensActive);
         const cost = event.cost;
         logger.debug('done', {
           messages: event.messages.length,
@@ -296,7 +312,7 @@ async function runAgent(promptArg: string | undefined, opts: RunOptions): Promis
       }
 
       case 'error':
-        if (inlineTokensActive) { println(); inlineTokensActive = false; }
+        flushInlineTokens(inlineTokensActive);
         logger.error(`stream error: ${event.message}`);
         break;
     }

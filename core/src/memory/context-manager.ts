@@ -4,6 +4,44 @@ import { QdrantClient } from './qdrant.js';
 
 const logger = createLogger('core:context-manager');
 
+// ─── OpenAI chat helper (raw fetch) ───────────────────────────────────────────
+
+interface OpenAIChatResponse {
+  choices: Array<{ message: { content: string | null } }>;
+}
+
+async function llmComplete(
+  systemPrompt: string,
+  userMessage: string,
+  apiKey: string,
+  model: string,
+): Promise<string> {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
+      temperature: 0.3,
+      max_tokens: 512,
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`OpenAI chat completions error ${response.status}: ${err}`);
+  }
+
+  const data = (await response.json()) as OpenAIChatResponse;
+  return data.choices[0]?.message?.content ?? '';
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface ContextMessage {
@@ -53,44 +91,6 @@ export interface SessionRecord {
   agentId: string;
   summary?: string | null;
   summaryUpTo?: number;
-}
-
-// ─── OpenAI chat helper (raw fetch, same pattern as OpenCodeZenProvider) ───────
-
-interface OpenAIChatResponse {
-  choices: Array<{ message: { content: string | null } }>;
-}
-
-async function llmComplete(
-  systemPrompt: string,
-  userMessage: string,
-  apiKey: string,
-  model: string,
-): Promise<string> {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
-      ],
-      temperature: 0.3,
-      max_tokens: 512,
-    }),
-  });
-
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`OpenAI chat completions error ${response.status}: ${err}`);
-  }
-
-  const data = (await response.json()) as OpenAIChatResponse;
-  return data.choices[0]?.message?.content ?? '';
 }
 
 // ─── ContextManager ───────────────────────────────────────────────────────────
@@ -219,8 +219,7 @@ export class ContextManager {
       return [
         {
           role: 'system',
-          content:
-            `Relevant context from previous conversations:\n${snippets}`,
+          content: `Relevant context from previous conversations:\n${snippets}`,
         },
       ];
     } catch (err) {
@@ -234,8 +233,8 @@ export class ContextManager {
 
   /**
    * Layer 2 — Summarisation: if total messages exceed the threshold, summarise
-   * the oldest messages (up to `summaryUpTo` cursor) via LLM and return the
-   * update to be persisted on the session.
+   * the oldest messages (up to `summaryUpTo` cursor) via LangChain ChatOpenAI
+   * and return the update to be persisted on the session.
    */
   async maybeSummarise(
     session: SessionRecord,

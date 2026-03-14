@@ -25,21 +25,30 @@ function sendEvent(res: Response, event: string, data: unknown): void {
 async function generateTitle(
   sessionId: string,
   firstUserMessage: string,
-  openaiApiKey?: string,
 ): Promise<void> {
-  if (!openaiApiKey) {
-    // Fallback: truncate first message
+  // Prefer opencode-zen, fall back to OpenAI if available.
+  const zenKey = process.env.OPENCODE_ZEN_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
+
+  const apiKey = zenKey || openaiKey;
+
+  if (!apiKey) {
+    // No LLM key available — use truncated first message as title
     const fallback = firstUserMessage.slice(0, 50);
     await agentSessionsRepository.update(sessionId, { title: fallback });
     return;
   }
 
+  const baseUrl = zenKey
+    ? 'https://opencode.ai/zen/v1'
+    : 'https://api.openai.com/v1';
+
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${openaiApiKey}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
@@ -62,6 +71,8 @@ async function generateTitle(
       };
       const title = data.choices[0]?.message?.content?.trim() || firstUserMessage.slice(0, 50);
       await agentSessionsRepository.update(sessionId, { title });
+    } else {
+      await agentSessionsRepository.update(sessionId, { title: firstUserMessage.slice(0, 50) });
     }
   } catch (err) {
     logger.warn('Failed to generate session title', {
@@ -142,7 +153,7 @@ router.post('/agent/:agentId/run', async (req: Request, res: Response) => {
 
     // --- Async title generation on first message ---
     if (isFirstMessage && !session.title) {
-      generateTitle(sessionId, message, process.env.OPENAI_API_KEY).catch(() => {
+      generateTitle(sessionId, message).catch(() => {
         // swallow — title is cosmetic
       });
     }

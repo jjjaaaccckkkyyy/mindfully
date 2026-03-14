@@ -1,3 +1,17 @@
+/**
+ * PromptBuilder — LangChain ChatPromptTemplate-backed system prompt builder.
+ *
+ * Builds a structured system prompt string from layered sections, using
+ * ChatPromptTemplate / SystemMessagePromptTemplate under the hood.
+ * The `build()` method returns a plain string (suitable for injection as a
+ * `role: "system"` message) so that the rest of the stack (runner, context
+ * manager) is unchanged.
+ */
+import {
+  ChatPromptTemplate,
+  HumanMessagePromptTemplate,
+} from '@langchain/core/prompts';
+import { SystemMessage } from '@langchain/core/messages';
 import type { ToolDefinition } from 'core';
 
 export interface PromptBuildOptions {
@@ -69,6 +83,8 @@ Use structured tags for downstream parsing:
 <action>tool_name</action>
 <result>...</result>`;
 
+// ─── PromptBuilder ────────────────────────────────────────────────────────────
+
 export class PromptBuilder {
   private maxContextTokens: number;
 
@@ -76,7 +92,33 @@ export class PromptBuilder {
     this.maxContextTokens = maxContextTokens;
   }
 
+  /**
+   * Build the complete system prompt as a plain string.
+   */
   build(options: PromptBuildOptions): string {
+    return this.truncateIfNeeded(this.buildSystemContent(options));
+  }
+
+  /**
+   * Build a ChatPromptTemplate with the system prompt as a fixed message and
+   * a human message placeholder for `{input}`.
+   *
+   * The system content is injected as a literal `SystemMessage` (not a
+   * template string) to avoid f-string / mustache interpolation errors when
+   * the content contains curly braces (e.g. JSON tool schemas).
+   */
+  buildTemplate(options: PromptBuildOptions): ChatPromptTemplate {
+    const systemContent = this.truncateIfNeeded(this.buildSystemContent(options));
+
+    return ChatPromptTemplate.fromMessages([
+      new SystemMessage(systemContent),
+      HumanMessagePromptTemplate.fromTemplate('{input}'),
+    ]);
+  }
+
+  // ─── Private layer builders ───────────────────────────────────────────────
+
+  private buildSystemContent(options: PromptBuildOptions): string {
     const layers: string[] = [];
 
     layers.push(this.buildCoreInstructions(options.coreInstructions));
@@ -89,8 +131,7 @@ export class PromptBuilder {
     layers.push(this.buildBootstrapHooks(options.bootstrapHooks));
     layers.push(this.buildInboundContext(options.conversationHistory));
 
-    const prompt = layers.filter(Boolean).join('\n\n');
-    return this.truncateIfNeeded(prompt);
+    return layers.filter(Boolean).join('\n\n');
   }
 
   private buildCoreInstructions(custom?: string): string {

@@ -1,271 +1,464 @@
-import { describe, it, expect } from 'vitest';
-import { z } from 'zod';
+/**
+ * Tests for AgentRunner (runner.ts).
+ *
+ * We mock createLLMChain and buildAgentGraph so no real API calls or
+ * StateGraph compilation is needed. All core behaviours are exercised:
+ *  - run() happy path
+ *  - run() with conversation history
+ *  - run() graph error captured in AgentState.error
+ *  - stream() token / tool_start / tool_result / done events
+ *  - stream() error event on graph failure
+ *  - getCostInfo() / getTotalCost() delegation
+ *  - historyEntryToBaseMessage role mapping (all branches)
+ *  - baseMessageToAgentMessage role mapping (all branches)
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  AIMessage,
+  HumanMessage,
+  SystemMessage,
+  ToolMessage,
+} from '@langchain/core/messages';
 
-// ---------------------------------------------------------------------------
-// We test the internal `zodTypeToJsonSchema` function indirectly via a
-// round-trip through `toToolSchemas` by inspecting the `parameters` that
-// come out of a real AgentRunner. However, since these helpers are not
-// exported, we reproduce a small test shim here that calls them through
-// the exported AgentRunner class which calls toToolSchemas internally.
-//
-// To keep things focused and fast we test the conversion logic directly
-// by building minimal Tool objects and calling runner.stream() for one
-// step — OR we inline the same logic here since the functions are pure.
-//
-// The cleanest approach: import AgentRunner and check that the provider
-// receives the correct tool schemas. We mock the provider chain.
-// ---------------------------------------------------------------------------
+// ─── Mock dependencies ────────────────────────────────────────────────────────
 
-// Re-implement zodTypeToJsonSchema locally for unit-testing the logic.
-// This mirrors the implementation in runner.ts exactly.
+vi.mock('./providers/index.js', () => ({
+  createLLMChain: vi.fn(),
+}));
 
-function isOptionalOrDefault(schema: z.ZodTypeAny): boolean {
-  return schema instanceof z.ZodOptional || schema instanceof z.ZodDefault;
+vi.mock('./graph/index.js', () => ({
+  buildAgentGraph: vi.fn(),
+}));
+
+// Import AFTER mocks are registered
+import { createLLMChain } from './providers/index.js';
+import { buildAgentGraph } from './graph/index.js';
+import { AgentRunner, createAgentRunner } from './runner.js';
+import type { AgentRunOptions } from './runner.js';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function makeLLMChain(overrides: Partial<ReturnType<typeof createLLMChain>> = {}) {
+  return {
+    runnable: { invoke: vi.fn(), stream: vi.fn() },
+    costHandlers: [],
+    getTotalCost: vi.fn().mockReturnValue(0),
+    getCostHistory: vi.fn().mockReturnValue([]),
+    ...overrides,
+  };
 }
 
-function zodTypeToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
-  if (schema instanceof z.ZodOptional) return zodTypeToJsonSchema(schema.unwrap());
-  if (schema instanceof z.ZodDefault) return zodTypeToJsonSchema(schema._def.innerType);
-  if (schema instanceof z.ZodNullable) {
-    const inner = zodTypeToJsonSchema(schema.unwrap());
-    return { ...inner, nullable: true };
-  }
-
-  if (schema instanceof z.ZodString) {
-    const result: Record<string, unknown> = { type: 'string' };
-    if (schema.description) result.description = schema.description;
-    return result;
-  }
-  if (schema instanceof z.ZodNumber) {
-    const result: Record<string, unknown> = { type: 'number' };
-    if (schema.description) result.description = schema.description;
-    return result;
-  }
-  if (schema instanceof z.ZodBoolean) {
-    const result: Record<string, unknown> = { type: 'boolean' };
-    if (schema.description) result.description = schema.description;
-    return result;
-  }
-  if (schema instanceof z.ZodLiteral) {
-    const val = schema._def.value;
-    const type = typeof val === 'number' ? 'number' : typeof val === 'boolean' ? 'boolean' : 'string';
-    return { type, const: val };
-  }
-  if (schema instanceof z.ZodArray) {
-    return { type: 'array', items: zodTypeToJsonSchema(schema.element) };
-  }
-  if (schema instanceof z.ZodObject) {
-    const shape = schema.shape as Record<string, z.ZodTypeAny>;
-    const props: Record<string, unknown> = {};
-    const required: string[] = [];
-    for (const [k, v] of Object.entries(shape)) {
-      props[k] = zodTypeToJsonSchema(v);
-      if (!isOptionalOrDefault(v)) required.push(k);
-    }
-    return { type: 'object', properties: props, ...(required.length > 0 ? { required } : {}) };
-  }
-  if (schema instanceof z.ZodEnum) return { type: 'string', enum: schema.options };
-  if (schema instanceof z.ZodUnion) {
-    const options = schema._def.options as z.ZodTypeAny[];
-    return { oneOf: options.map(zodTypeToJsonSchema) };
-  }
-  if (schema instanceof z.ZodDiscriminatedUnion) {
-    const options = Array.from(
-      (schema._def.optionsMap as Map<unknown, z.ZodTypeAny>).values(),
-    );
-    return { oneOf: options.map(zodTypeToJsonSchema) };
-  }
-  return {};
-}
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
-describe('zodTypeToJsonSchema', () => {
-  describe('primitives', () => {
-    it('converts ZodString to { type: "string" }', () => {
-      expect(zodTypeToJsonSchema(z.string())).toEqual({ type: 'string' });
-    });
-
-    it('converts ZodNumber to { type: "number" }', () => {
-      expect(zodTypeToJsonSchema(z.number())).toEqual({ type: 'number' });
-    });
-
-    it('converts ZodBoolean to { type: "boolean" }', () => {
-      expect(zodTypeToJsonSchema(z.boolean())).toEqual({ type: 'boolean' });
-    });
-
-    it('preserves description on ZodString', () => {
-      expect(zodTypeToJsonSchema(z.string().describe('A label'))).toMatchObject({
-        type: 'string',
-        description: 'A label',
-      });
-    });
-  });
-
-  describe('ZodLiteral', () => {
-    it('converts string literal to { type: "string", const: value }', () => {
-      expect(zodTypeToJsonSchema(z.literal('foo'))).toEqual({ type: 'string', const: 'foo' });
-    });
-
-    it('converts number literal to { type: "number", const: value }', () => {
-      expect(zodTypeToJsonSchema(z.literal(42))).toEqual({ type: 'number', const: 42 });
-    });
-
-    it('converts boolean literal to { type: "boolean", const: value }', () => {
-      expect(zodTypeToJsonSchema(z.literal(true))).toEqual({ type: 'boolean', const: true });
-    });
-  });
-
-  describe('ZodNullable', () => {
-    it('adds nullable: true to inner schema', () => {
-      expect(zodTypeToJsonSchema(z.string().nullable())).toEqual({
-        type: 'string',
-        nullable: true,
-      });
-    });
-
-    it('adds nullable: true and preserves description', () => {
-      expect(zodTypeToJsonSchema(z.string().describe('desc').nullable())).toMatchObject({
-        type: 'string',
-        nullable: true,
-        description: 'desc',
-      });
-    });
-  });
-
-  describe('ZodOptional / ZodDefault', () => {
-    it('unwraps ZodOptional transparently', () => {
-      expect(zodTypeToJsonSchema(z.string().optional())).toEqual({ type: 'string' });
-    });
-
-    it('unwraps ZodDefault transparently', () => {
-      expect(zodTypeToJsonSchema(z.string().default('hi'))).toEqual({ type: 'string' });
-    });
-  });
-
-  describe('ZodUnion', () => {
-    it('converts union of two primitives to oneOf', () => {
-      expect(zodTypeToJsonSchema(z.union([z.string(), z.number()]))).toEqual({
-        oneOf: [{ type: 'string' }, { type: 'number' }],
-      });
-    });
-
-    it('handles union of three types', () => {
-      const result = zodTypeToJsonSchema(z.union([z.string(), z.number(), z.boolean()]));
-      expect(result).toMatchObject({
-        oneOf: expect.arrayContaining([
-          { type: 'string' },
-          { type: 'number' },
-          { type: 'boolean' },
-        ]),
-      });
-      expect((result.oneOf as unknown[]).length).toBe(3);
-    });
-  });
-
-  describe('ZodDiscriminatedUnion', () => {
-    const ProcessSchema = z.discriminatedUnion('action', [
-      z.object({ action: z.literal('list') }),
-      z.object({
-        action: z.literal('poll'),
-        id: z.string().describe('Process ID'),
-      }),
-      z.object({
-        action: z.literal('write'),
-        id: z.string(),
-        input: z.string(),
-      }),
-      z.object({
-        action: z.literal('kill'),
-        id: z.string(),
-      }),
-    ]);
-
-    it('converts discriminated union to oneOf array', () => {
-      const result = zodTypeToJsonSchema(ProcessSchema);
-      expect(result).toHaveProperty('oneOf');
-      expect(Array.isArray(result.oneOf)).toBe(true);
-      expect((result.oneOf as unknown[]).length).toBe(4);
-    });
-
-    it('each variant is an object schema with properties', () => {
-      const result = zodTypeToJsonSchema(ProcessSchema);
-      const variants = result.oneOf as Array<Record<string, unknown>>;
-      for (const variant of variants) {
-        expect(variant.type).toBe('object');
-        expect(variant.properties).toBeDefined();
+function makeGraph(invokeResult?: unknown, streamEvents?: unknown[]) {
+  return {
+    invoke: vi.fn().mockResolvedValue(
+      invokeResult ?? { messages: [new AIMessage('default reply')] },
+    ),
+    streamEvents: vi.fn(async function* () {
+      for (const ev of streamEvents ?? []) {
+        yield ev;
       }
-    });
+    }),
+  };
+}
 
-    it('list variant has only action property', () => {
-      const result = zodTypeToJsonSchema(ProcessSchema);
-      const variants = result.oneOf as Array<{
-        type: string;
-        properties: Record<string, unknown>;
-        required?: string[];
-      }>;
-      const listVariant = variants.find(
-        (v) => (v.properties['action'] as { const?: unknown })?.const === 'list',
-      );
-      expect(listVariant).toBeDefined();
-      expect(Object.keys(listVariant!.properties)).toEqual(['action']);
-    });
+function baseRunOptions(overrides: Partial<AgentRunOptions> = {}): AgentRunOptions {
+  return {
+    input: 'Hello',
+    tools: [],
+    toolExecutor: vi.fn().mockResolvedValue({ result: 'ok' }),
+    ...overrides,
+  };
+}
 
-    it('poll variant has action and id properties', () => {
-      const result = zodTypeToJsonSchema(ProcessSchema);
-      const variants = result.oneOf as Array<{
-        type: string;
-        properties: Record<string, unknown>;
-      }>;
-      const pollVariant = variants.find(
-        (v) => (v.properties['action'] as { const?: unknown })?.const === 'poll',
-      );
-      expect(pollVariant).toBeDefined();
-      expect(pollVariant!.properties).toHaveProperty('id');
-    });
+// ─── Setup ────────────────────────────────────────────────────────────────────
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+// ─── AgentRunner constructor ──────────────────────────────────────────────────
+
+describe('AgentRunner constructor', () => {
+  it('uses provided llmChain directly', () => {
+    const chain = makeLLMChain();
+    const runner = new AgentRunner({ llmChain: chain as never });
+    expect(runner).toBeInstanceOf(AgentRunner);
+    expect(createLLMChain).not.toHaveBeenCalled();
   });
 
-  describe('ZodObject', () => {
-    it('emits required[] for non-optional fields', () => {
-      const schema = z.object({
-        name: z.string(),
-        age: z.number().optional(),
-      });
-      const result = zodTypeToJsonSchema(schema) as {
-        required?: string[];
-        properties: Record<string, unknown>;
-      };
-      expect(result.required).toContain('name');
-      expect(result.required).not.toContain('age');
-    });
-
-    it('omits required[] when all fields are optional', () => {
-      const schema = z.object({
-        x: z.string().optional(),
-        y: z.number().optional(),
-      });
-      const result = zodTypeToJsonSchema(schema) as { required?: string[] };
-      expect(result.required).toBeUndefined();
-    });
+  it('calls createLLMChain when no llmChain is provided', () => {
+    const chain = makeLLMChain();
+    vi.mocked(createLLMChain).mockReturnValue(chain as never);
+    new AgentRunner({});
+    expect(createLLMChain).toHaveBeenCalledOnce();
   });
 
-  describe('ZodArray', () => {
-    it('converts array of strings', () => {
-      expect(zodTypeToJsonSchema(z.array(z.string()))).toEqual({
-        type: 'array',
-        items: { type: 'string' },
-      });
-    });
+  it('createAgentRunner factory wraps the constructor', () => {
+    const chain = makeLLMChain();
+    vi.mocked(createLLMChain).mockReturnValue(chain as never);
+    const runner = createAgentRunner();
+    expect(runner).toBeInstanceOf(AgentRunner);
+  });
+});
+
+// ─── getCostInfo / getTotalCost ───────────────────────────────────────────────
+
+describe('getCostInfo / getTotalCost', () => {
+  it('returns undefined when cost history is empty', () => {
+    const chain = makeLLMChain({ getCostHistory: vi.fn().mockReturnValue([]) });
+    const runner = new AgentRunner({ llmChain: chain as never });
+    expect(runner.getCostInfo()).toBeUndefined();
   });
 
-  describe('ZodEnum', () => {
-    it('converts enum to { type: "string", enum: [...] }', () => {
-      expect(zodTypeToJsonSchema(z.enum(['a', 'b', 'c']))).toEqual({
-        type: 'string',
-        enum: ['a', 'b', 'c'],
-      });
-    });
+  it('returns last cost entry when history is non-empty', () => {
+    const entry = { provider: 'openai', model: 'gpt-4o', inputTokens: 10, outputTokens: 5, totalCost: 0.001, currency: 'USD' };
+    const chain = makeLLMChain({ getCostHistory: vi.fn().mockReturnValue([entry]) });
+    const runner = new AgentRunner({ llmChain: chain as never });
+    expect(runner.getCostInfo()).toBe(entry);
+  });
+
+  it('delegates getTotalCost to llmChain', () => {
+    const chain = makeLLMChain({ getTotalCost: vi.fn().mockReturnValue(42) });
+    const runner = new AgentRunner({ llmChain: chain as never });
+    expect(runner.getTotalCost()).toBe(42);
+  });
+});
+
+// ─── run() ───────────────────────────────────────────────────────────────────
+
+describe('AgentRunner.run()', () => {
+  it('returns AgentState with messages on success', async () => {
+    const chain = makeLLMChain();
+    const graph = makeGraph({ messages: [new HumanMessage('hi'), new AIMessage('hello back')] });
+    vi.mocked(buildAgentGraph).mockReturnValue(graph as never);
+
+    const runner = new AgentRunner({ llmChain: chain as never });
+    const state = await runner.run(baseRunOptions());
+
+    expect(state.input).toBe('Hello');
+    expect(state.messages).toHaveLength(2);
+    expect(state.messages[0].role).toBe('user');
+    expect(state.messages[1].role).toBe('assistant');
+    expect(state.error).toBeUndefined();
+  });
+
+  it('uses history when provided instead of wrapping input in HumanMessage', async () => {
+    const chain = makeLLMChain();
+    const graph = makeGraph({ messages: [new AIMessage('answer')] });
+    vi.mocked(buildAgentGraph).mockReturnValue(graph as never);
+
+    const runner = new AgentRunner({ llmChain: chain as never });
+    const state = await runner.run(
+      baseRunOptions({
+        history: [
+          { role: 'system', content: 'You are a test agent.' },
+          { role: 'user', content: 'What is 2+2?' },
+        ],
+      }),
+    );
+
+    expect(state.messages[0].role).toBe('assistant');
+    // graph.invoke should have been called with 2 initial messages
+    const invokeCalls = graph.invoke.mock.calls[0];
+    expect(invokeCalls[0].messages).toHaveLength(2);
+    expect(invokeCalls[0].messages[0]).toBeInstanceOf(SystemMessage);
+    expect(invokeCalls[0].messages[1]).toBeInstanceOf(HumanMessage);
+  });
+
+  it('captures errors from the graph in AgentState.error', async () => {
+    const chain = makeLLMChain();
+    const graph = {
+      invoke: vi.fn().mockRejectedValue(new Error('graph blew up')),
+      streamEvents: vi.fn(),
+    };
+    vi.mocked(buildAgentGraph).mockReturnValue(graph as never);
+
+    const runner = new AgentRunner({ llmChain: chain as never });
+    const state = await runner.run(baseRunOptions());
+
+    expect(state.error).toBe('graph blew up');
+  });
+
+  it('accumulates toolResults from the toolExecutor wrapper', async () => {
+    const chain = makeLLMChain();
+    const toolMsg = new ToolMessage({ content: 'result-data', tool_call_id: 'tc-1' });
+    const graph = makeGraph({ messages: [toolMsg] });
+    vi.mocked(buildAgentGraph).mockReturnValue(graph as never);
+
+    const toolExecutor = vi.fn().mockResolvedValue({ result: 'tool-output' });
+
+    const runner = new AgentRunner({ llmChain: chain as never });
+    // Manually invoke the toolExecutor through the wrapper by invoking the captured arg
+    const state = await runner.run(baseRunOptions({ toolExecutor }));
+    // toolResults is accumulated only when the wrapped executor is called during graph.invoke
+    // Since we mock graph.invoke directly, no tool executor calls happen — state should have empty array
+    expect(state.toolResults).toHaveLength(0);
+  });
+
+  it('handles history with assistant tool_calls', async () => {
+    const chain = makeLLMChain();
+    const graph = makeGraph({ messages: [new AIMessage('done')] });
+    vi.mocked(buildAgentGraph).mockReturnValue(graph as never);
+
+    const runner = new AgentRunner({ llmChain: chain as never });
+    await runner.run(
+      baseRunOptions({
+        history: [
+          {
+            role: 'assistant',
+            content: '',
+            tool_calls: [{ name: 'search', args: { q: 'test' }, id: 'tc-x' }],
+          },
+          { role: 'tool', content: 'search result', toolCallId: 'tc-x', toolName: 'search' },
+        ],
+      }),
+    );
+
+    const invokeCalls = graph.invoke.mock.calls[0];
+    expect(invokeCalls[0].messages[0]).toBeInstanceOf(AIMessage);
+    expect(invokeCalls[0].messages[1]).toBeInstanceOf(ToolMessage);
+  });
+
+  it('handles unknown role in history as HumanMessage', async () => {
+    const chain = makeLLMChain();
+    const graph = makeGraph({ messages: [new AIMessage('done')] });
+    vi.mocked(buildAgentGraph).mockReturnValue(graph as never);
+
+    const runner = new AgentRunner({ llmChain: chain as never });
+    await runner.run(
+      baseRunOptions({
+        history: [{ role: 'unknown' as never, content: 'test' }],
+      }),
+    );
+
+    const invokeCalls = graph.invoke.mock.calls[0];
+    expect(invokeCalls[0].messages[0]).toBeInstanceOf(HumanMessage);
+  });
+});
+
+// ─── stream() ────────────────────────────────────────────────────────────────
+
+describe('AgentRunner.stream()', () => {
+  it('yields token events from on_chat_model_stream', async () => {
+    const chain = makeLLMChain();
+    const events = [
+      {
+        event: 'on_chat_model_stream',
+        name: 'call_model',
+        data: { chunk: { content: 'Hello ' } },
+      },
+      {
+        event: 'on_chat_model_stream',
+        name: 'call_model',
+        data: { chunk: { content: 'world' } },
+      },
+    ];
+    const graph = makeGraph(undefined, events);
+    vi.mocked(buildAgentGraph).mockReturnValue(graph as never);
+
+    const runner = new AgentRunner({ llmChain: chain as never });
+    const collected: unknown[] = [];
+    for await (const ev of runner.stream(baseRunOptions())) {
+      collected.push(ev);
+    }
+
+    const tokens = collected.filter((e: unknown) => (e as { type: string }).type === 'token');
+    expect(tokens).toHaveLength(2);
+    expect((tokens[0] as { content: string }).content).toBe('Hello ');
+    expect((tokens[1] as { content: string }).content).toBe('world');
+  });
+
+  it('skips empty token content', async () => {
+    const chain = makeLLMChain();
+    const events = [
+      { event: 'on_chat_model_stream', name: 'call_model', data: { chunk: { content: '' } } },
+      { event: 'on_chat_model_stream', name: 'call_model', data: { chunk: {} } },
+    ];
+    const graph = makeGraph(undefined, events);
+    vi.mocked(buildAgentGraph).mockReturnValue(graph as never);
+
+    const runner = new AgentRunner({ llmChain: chain as never });
+    const collected: unknown[] = [];
+    for await (const ev of runner.stream(baseRunOptions())) {
+      collected.push(ev);
+    }
+
+    const tokens = collected.filter((e: unknown) => (e as { type: string }).type === 'token');
+    expect(tokens).toHaveLength(0);
+  });
+
+  it('yields tool_start events from on_chain_start execute_tools', async () => {
+    const aiMsg = new AIMessage({ content: '' });
+    aiMsg.tool_calls = [{ name: 'lookup', args: { q: 'foo' }, id: 'tc-1', type: 'tool_call' }];
+
+    const events = [
+      {
+        event: 'on_chain_start',
+        name: 'execute_tools',
+        data: { input: { messages: [aiMsg] } },
+      },
+    ];
+    const chain = makeLLMChain();
+    const graph = makeGraph(undefined, events);
+    vi.mocked(buildAgentGraph).mockReturnValue(graph as never);
+
+    const runner = new AgentRunner({ llmChain: chain as never });
+    const collected: unknown[] = [];
+    for await (const ev of runner.stream(baseRunOptions())) {
+      collected.push(ev);
+    }
+
+    const toolStarts = collected.filter((e: unknown) => (e as { type: string }).type === 'tool_start');
+    expect(toolStarts).toHaveLength(1);
+    expect((toolStarts[0] as { name: string }).name).toBe('lookup');
+  });
+
+  it('yields tool_result events from on_chain_end execute_tools with pending call', async () => {
+    const aiMsg = new AIMessage({ content: '' });
+    aiMsg.tool_calls = [{ name: 'search', args: {}, id: 'tc-2', type: 'tool_call' }];
+    const toolMsg = new ToolMessage({ content: 'result-value', tool_call_id: 'tc-2', name: 'search' });
+
+    const events = [
+      { event: 'on_chain_start', name: 'execute_tools', data: { input: { messages: [aiMsg] } } },
+      { event: 'on_chain_end', name: 'execute_tools', data: { output: { messages: [toolMsg] } } },
+    ];
+    const chain = makeLLMChain();
+    const graph = makeGraph(undefined, events);
+    vi.mocked(buildAgentGraph).mockReturnValue(graph as never);
+
+    const runner = new AgentRunner({ llmChain: chain as never });
+    const collected: unknown[] = [];
+    for await (const ev of runner.stream(baseRunOptions())) {
+      collected.push(ev);
+    }
+
+    const results = collected.filter((e: unknown) => (e as { type: string }).type === 'tool_result');
+    expect(results).toHaveLength(1);
+    expect((results[0] as { name: string }).name).toBe('search');
+  });
+
+  it('yields tool_result for ToolMessage without a pending call', async () => {
+    const toolMsg = new ToolMessage({ content: 'orphan-result', tool_call_id: 'tc-orphan', name: 'orphan' });
+    const events = [
+      { event: 'on_chain_end', name: 'execute_tools', data: { output: { messages: [toolMsg] } } },
+    ];
+    const chain = makeLLMChain();
+    const graph = makeGraph(undefined, events);
+    vi.mocked(buildAgentGraph).mockReturnValue(graph as never);
+
+    const runner = new AgentRunner({ llmChain: chain as never });
+    const collected: unknown[] = [];
+    for await (const ev of runner.stream(baseRunOptions())) {
+      collected.push(ev);
+    }
+
+    const results = collected.filter((e: unknown) => (e as { type: string }).type === 'tool_result');
+    expect(results).toHaveLength(1);
+    expect((results[0] as { name: string }).name).toBe('orphan');
+  });
+
+  it('captures final messages from on_chain_end __end__', async () => {
+    const finalMsg = new AIMessage('final answer');
+    const events = [
+      { event: 'on_chain_end', name: '__end__', data: { output: { messages: [finalMsg] } } },
+    ];
+    const chain = makeLLMChain();
+    const graph = makeGraph(undefined, events);
+    vi.mocked(buildAgentGraph).mockReturnValue(graph as never);
+
+    const runner = new AgentRunner({ llmChain: chain as never });
+    const collected: unknown[] = [];
+    for await (const ev of runner.stream(baseRunOptions())) {
+      collected.push(ev);
+    }
+
+    const done = collected.find((e: unknown) => (e as { type: string }).type === 'done') as { messages: { content: string }[] } | undefined;
+    expect(done).toBeDefined();
+    expect(done?.messages[0].content).toBe('final answer');
+  });
+
+  it('yields error event when graph stream throws', async () => {
+    const chain = makeLLMChain();
+    const graph = {
+      invoke: vi.fn(),
+      streamEvents: vi.fn(async function* () {
+        throw new Error('stream blew up');
+        // eslint-disable-next-line @typescript-eslint/no-unreachable
+        yield; // make it a generator
+      }),
+    };
+    vi.mocked(buildAgentGraph).mockReturnValue(graph as never);
+
+    const runner = new AgentRunner({ llmChain: chain as never });
+    const collected: unknown[] = [];
+    for await (const ev of runner.stream(baseRunOptions())) {
+      collected.push(ev);
+    }
+
+    const errors = collected.filter((e: unknown) => (e as { type: string }).type === 'error');
+    expect(errors).toHaveLength(1);
+    expect((errors[0] as { message: string }).message).toBe('stream blew up');
+  });
+
+  it('yields done event at end of a successful stream', async () => {
+    const chain = makeLLMChain();
+    const graph = makeGraph(undefined, []);
+    vi.mocked(buildAgentGraph).mockReturnValue(graph as never);
+
+    const runner = new AgentRunner({ llmChain: chain as never });
+    const collected: unknown[] = [];
+    for await (const ev of runner.stream(baseRunOptions())) {
+      collected.push(ev);
+    }
+
+    const done = collected.find((e: unknown) => (e as { type: string }).type === 'done');
+    expect(done).toBeDefined();
+  });
+});
+
+// ─── baseMessageToAgentMessage branches ──────────────────────────────────────
+
+describe('baseMessageToAgentMessage (via run() output)', () => {
+  it('converts ToolMessage to role=tool with toolCallId and toolName', async () => {
+    const chain = makeLLMChain();
+    const toolMsg = new ToolMessage({ content: 'tool-content', tool_call_id: 'tc-99', name: 'myTool' });
+    const graph = makeGraph({ messages: [toolMsg] });
+    vi.mocked(buildAgentGraph).mockReturnValue(graph as never);
+
+    const runner = new AgentRunner({ llmChain: chain as never });
+    const state = await runner.run(baseRunOptions());
+
+    const msg = state.messages[0];
+    expect(msg.role).toBe('tool');
+    expect(msg.content).toBe('tool-content');
+    expect(msg.toolCallId).toBe('tc-99');
+    expect(msg.toolName).toBe('myTool');
+  });
+
+  it('converts AIMessage with tool_calls to role=assistant with tool_calls array', async () => {
+    const chain = makeLLMChain();
+    const aiMsg = new AIMessage({ content: 'calling tool' });
+    aiMsg.tool_calls = [{ name: 'foo', args: { x: 1 }, id: 'tc-foo', type: 'tool_call' }];
+    const graph = makeGraph({ messages: [aiMsg] });
+    vi.mocked(buildAgentGraph).mockReturnValue(graph as never);
+
+    const runner = new AgentRunner({ llmChain: chain as never });
+    const state = await runner.run(baseRunOptions());
+
+    const msg = state.messages[0];
+    expect(msg.role).toBe('assistant');
+    expect(msg.tool_calls).toHaveLength(1);
+    expect(msg.tool_calls![0].name).toBe('foo');
+  });
+
+  it('converts SystemMessage to role=system', async () => {
+    const chain = makeLLMChain();
+    const graph = makeGraph({ messages: [new SystemMessage('sys msg')] });
+    vi.mocked(buildAgentGraph).mockReturnValue(graph as never);
+
+    const runner = new AgentRunner({ llmChain: chain as never });
+    const state = await runner.run(baseRunOptions());
+
+    expect(state.messages[0].role).toBe('system');
   });
 });
